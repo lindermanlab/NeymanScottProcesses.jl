@@ -1,31 +1,29 @@
 module NeymanScottProcesses
 
 
-# TODO
-# - [ ] Reincorporate SparseMultinomial and SparseDirichletMultinomial to `distributions.jl`
-
-
 # === 
-# Extensions
+# EXTENSIONS
 # ===
+
 import Base.Iterators
 import Distributions
-# import Base: size, rand, length, getindex, iterate, in
 
 
 # ===
-# Imports
+# IMPORTS
 # ===
 
+# Modules
 using LinearAlgebra
 using Statistics
 using SparseArrays
 
+# Methods
 using Distributions: cdf, mean, var
+using Random: AbstractRNG
 using SpecialFunctions: logabsgamma, logfactorial
 using StatsBase: sample, pweights, denserank, mean
 using StatsFuns: softmax!, softmax, logaddexp, logsumexp, normlogpdf, normpdf
-using Random: AbstractRNG
 
 # Distributions
 using Distributions: Categorical, Chisq, Normal, Poisson, TDist
@@ -34,6 +32,22 @@ using Distributions: Dirichlet, Multinomial, MultivariateNormal, InverseWishart
 export RateGamma, NormalInvChisq, ScaledInvChiseq, SymmetricDirichlet
 export specify_gamma, mean, var
 
+
+# ===
+# INCLUDES
+# ===
+
+include("utils.jl")
+include("distributions.jl")
+
+
+
+
+
+# TODO
+# - [ ] Reincorporate SparseMultinomial and SparseDirichletMultinomial to `distributions.jl`
+
+# import Base: size, rand, length, getindex, iterate, in
 
 # export log_joint, log_prior, log_p_latents
 # export split_merge_sample!, gibbs_sample!, annealed_gibbs!
@@ -45,9 +59,5 @@ export specify_gamma, mean, var
 # export Spike, EventSummaryInfo, SeqHypers, SeqGlobals, PPSeq, DistributedPPSeq
 # export Point, GaussianEventSummary, GaussianPriors, GaussianGlobals, GaussianNeymanScottModel 
 # export Cable, CablesEventSummary, CablesPriors, CablesGlobals, CablesModel
-
-include("utils.jl")
-include("distributions.jl")
-
 
 end
