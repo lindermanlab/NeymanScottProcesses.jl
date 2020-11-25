@@ -64,6 +64,10 @@ include("core/nsp.jl")  # Neyman-Scott Model
 include("core/interface.jl")  # Interface that models must implement
 include("core/eventlist.jl")  # Managing (non-parametric) events
 
+# Samplers
+include("samplers/base.jl")
+include("samplers/gibbs.jl")
+
 # Models
 include("models/gaussian.jl")
 
@@ -74,8 +78,6 @@ include("plots.jl")
 
 # TODO
 # - [ ] Reincorporate SparseMultinomial and SparseDirichletMultinomial to `distributions.jl`
-
-# import Base: size, rand, length, getindex, iterate, in
 
 # export log_joint
 # export split_merge_sample!, gibbs_sample!, annealed_gibbs!
