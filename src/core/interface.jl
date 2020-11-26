@@ -46,11 +46,6 @@ were empty.
 reset!(event::AbstractEvent) = notimplemented()
 
 """
-Returns `true` if the event has already been sampled.
-"""
-been_sampled(event::AbstractEvent) = notimplemented()
-
-"""
 Removes the point `x` from event `k` in `events(model)`.
 """
 remove_datapoint!(model::NeymanScottModel, x::AbstractDatapoint, k::Int64) = notimplemented()

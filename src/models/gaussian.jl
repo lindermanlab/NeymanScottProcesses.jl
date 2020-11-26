@@ -61,13 +61,13 @@ where
 # STRUCTS
 # ===
 
-struct Point <: AbstractDatapoint{2}
-    position::SVector{2, Float64}
+struct RealObservation{N} <: AbstractDatapoint{N}
+    position::SVector{N, Float64}
 end
 
-mutable struct Cluster <: AbstractEvent{2}
+mutable struct GaussianCluster{N} <: AbstractEvent{N}
     datapoint_count::Int
-    moments::Tuple{SVector{2, Float64}, SMatrix{2, 2, Float64}}
+    moments::Tuple{SVector{N, Float64}, SMatrix{N, N, Float64}}
 
     sampled_position
     sampled_covariance
@@ -91,10 +91,10 @@ mutable struct GaussianPriors <: AbstractPriors
     mean_pseudo_obs::Float64
 end
 
-const GaussianNeymanScottModel = NeymanScottModel{
-    2, 
-    Point, 
-    Cluster, 
+const GaussianNeymanScottModel{N} = NeymanScottModel{
+    N, 
+    RealObservation{N}, 
+    GaussianCluster{N}, 
     GaussianGlobals, 
     GaussianPriors
 }
@@ -106,9 +106,9 @@ const GaussianNeymanScottModel = NeymanScottModel{
 # UTILITY METHODS
 # ===
 
-covariance(e::Cluster) = e.sampled_covariance
+covariance(e::GaussianCluster) = e.sampled_covariance
 
-function logstudent_t_pdf(μ, Σ, ν, x, d=2)
+function _logstudent_t_pdf(μ, Σ, ν, x, d=2)
     return (
         lgamma((ν + d) / 2) 
         - lgamma(ν / 2)
@@ -119,7 +119,7 @@ function logstudent_t_pdf(μ, Σ, ν, x, d=2)
     )
 end
 
-function multinormpdf(μ, Σ, x)
+function _multinormpdf(μ, Σ, x)
     k = length(μ)
     return (
         (2π)^(-k/2) 
@@ -135,12 +135,15 @@ end
 # CONSTRUCTORS
 # ===
 
-constructor_args(e::Cluster) = ()
+constructor_args(e::GaussianCluster) = ()
 
-Cluster(μ, Σ, A) = Cluster(0, (zeros(SVector{2}), zeros(SMatrix{2, 2})), μ, Σ, A)
+function GaussianCluster(μ, Σ, A)
+    N = length(μ)
+    return GaussianCluster{N}(0, (zeros(SVector{N}), zeros(SMatrix{N, N})), μ, Σ, A)
+end
 
-function Cluster()
-    return Cluster(
+function GaussianCluster{N}() where {N}
+    return GaussianCluster(
         0,
         (zeros(SVector{2}), zeros(SMatrix{2, 2})),
         zeros(SVector{2}),
@@ -156,22 +159,26 @@ function GaussianPriors(
     covariance_scale,
     covariance_df,
 )
+    N = size(covariance_scale, 1)
     return GaussianPriors(
         event_rate, event_amplitude, bkgd_amplitude, covariance_scale, covariance_df,
-        zeros(2), 0.0,
+        zeros(N), 0.0,
     )
 end
 
 function GaussianNeymanScottModel(
-    bounds::Tuple{Float64, Float64},
+    bounds,
     priors::GaussianPriors;
     max_radius::Float64=Inf
 )
+    N = length(bounds)
+    @assert N === length(priors.mean_prior)
+
     globals = sample(priors)
-    events = EventList(Cluster, ())
+    events = EventList(GaussianCluster{N}, ())
 
     # Package it all together into the model object.
-    model = GaussianNeymanScottModel(
+    model = GaussianNeymanScottModel{N}(
         bounds,
         max_radius,
         priors,
@@ -195,19 +202,15 @@ end
 # DATA MANAGEMENT
 # ===
 
-function reset!(e::Cluster)
+function reset!(e::GaussianCluster)
     e.datapoint_count = 0
     e.moments[1] .= 0
     e.moments[2] .= 0
 end
 
-function been_sampled(e::Cluster)
-    return !isapprox(amplitude(e), NOT_SAMPLED_AMPLITUDE)
-end
-
 function remove_datapoint!(
     model::GaussianNeymanScottModel, 
-    x::Point, 
+    x::RealObservation, 
     k::Int;
     recompute_posterior::Bool=true
 ) 
@@ -227,7 +230,7 @@ end
 
 function add_datapoint!(
     model::GaussianNeymanScottModel, 
-    x::Point, 
+    x::RealObservation, 
     k::Int;
     recompute_posterior::Bool=true
 ) 
@@ -249,17 +252,17 @@ end
 # PROBABILITIES
 # ===
 
-bkgd_intensity(m::GaussianNeymanScottModel, x::Point) = bkgd_rate(globals(m))
+bkgd_intensity(m::GaussianNeymanScottModel, x::RealObservation) = bkgd_rate(globals(m))
 
-event_intensity(m::GaussianNeymanScottModel, e::Cluster, x::Point) =
-    multinormpdf(position(e), covariance(e), position(x))
+event_intensity(m::GaussianNeymanScottModel, e::GaussianCluster, x::RealObservation) =
+    _multinormpdf(position(e), covariance(e), position(x))
 
 log_prior(model::GaussianNeymanScottModel) =
     logpdf(bkgd_amplitude(priors(model)), bkgd_rate(globals(model)))
 
-bkgd_log_like(m::GaussianNeymanScottModel, d::Point) = -log(volume(m))
+bkgd_log_like(m::GaussianNeymanScottModel, d::RealObservation) = -log(volume(m))
 
-log_posterior_predictive(d::Point, m::GaussianNeymanScottModel) = -log(area(m))
+log_posterior_predictive(d::RealObservation, m::GaussianNeymanScottModel) = -log(area(m))
 
 function log_p_latents(model::GaussianNeymanScottModel)
     priors = get_priors(model)
@@ -284,12 +287,13 @@ function log_p_latents(model::GaussianNeymanScottModel)
 end
 
 function log_posterior_predictive(
-    event::Cluster, 
-    x::Point, 
+    event::GaussianCluster, 
+    x::RealObservation, 
     model::GaussianNeymanScottModel
 )
     # See https://www.cs.ubc.ca/~murphyk/Papers/bayesGauss.pdf
     # Extract first and second moments
+    dim = length(fm)
     n = event.datapoint_count
     fm = event.moments[1]
     sm = event.moments[2]
@@ -310,10 +314,10 @@ function log_posterior_predictive(
     Ψ0 = model.priors.covariance_scale
     Ψn = Ψ0 + S + ((κ0 * n) / κn) * (fm/n - μ0) * (fm/n - μ0)'
 
-    return logstudent_t_pdf(
+    return _logstudent_t_pdf(
         μn, 
-        (κn + 1) / (κn * (νn - DIM + 1)) * Ψn, 
-        νn - DIM + 1, 
+        (κn + 1) / (κn * (νn - dim + 1)) * Ψn, 
+        νn - dim + 1, 
         position(x)
     )
 end
@@ -334,23 +338,23 @@ function sample(priors::GaussianPriors)
 end
 
 """Sample a single latent event from the global variables."""
-function sample_event(::GaussianGlobals, model::GaussianNeymanScottModel)
+function sample_event(::GaussianGlobals, model::GaussianNeymanScottModel{N}) where {N}
     priors = get_priors(model)
     A = rand(event_amplitude(priors))
-    μ = rand(2) .* bounds(model)
+    μ = rand(N) .* bounds(model)
     Σ = rand(InverseWishart(priors.covariance_df, priors.covariance_scale))
-    return Cluster(SVector{2}(μ), SMatrix{2, 2}(Σ), A)
+    return GaussianCluster(SVector{N}(μ), SMatrix{N, N}(Σ), A)
 end
 
 """Sample a datapoint from the background process."""
-function sample_datapoint(::GaussianGlobals, model::GaussianNeymanScottModel)
-    x = rand(2) .* bounds(model)
-    return Point(SVector{2}(x))
+function sample_datapoint(::GaussianGlobals, model::GaussianNeymanScottModel{N}) where {N}
+    x = rand(N) .* bounds(model)
+    return RealObservation(SVector{N}(x))
 end
 
-function sample_datapoint(e::Cluster, ::GaussianGlobals, ::GaussianNeymanScottModel)
+function sample_datapoint(e::GaussianCluster, ::GaussianGlobals, ::GaussianNeymanScottModel{N}) where {N}
     x = rand(MultivariateNormal(position(e), Matrix(covariance(e))))
-    return Point(SVector{2}(x))
+    return RealObservation(SVector{N}(x))
 end
 
 
@@ -360,8 +364,7 @@ end
 # GIBBS SAMPLING
 # ===
 
-function gibbs_sample_event!(event::Cluster, model::GaussianNeymanScottModel)
-    
+function gibbs_sample_event!(event::GaussianCluster, model::GaussianNeymanScottModel)
     priors = get_priors(model)
     A0 = event_amplitude(priors)
     ν = priors.covariance_df
@@ -384,7 +387,7 @@ end
 
 function gibbs_sample_globals!(
     model::GaussianNeymanScottModel, 
-    data::Vector{Point}, 
+    data::Vector{RealObservation}, 
     assignments::Vector{Int}
 )
     priors = get_priors(model)

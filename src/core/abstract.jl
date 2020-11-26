@@ -23,7 +23,6 @@ mutable struct NeymanScottModel{
     G <: AbstractGlobals,
     P <: AbstractPriors
 }
-
     bounds  # Float or tuple
     max_event_radius
 
@@ -76,6 +75,8 @@ datapoint_count(event::AbstractEvent) = event.datapoint_count
 position(event::AbstractEvent) = event.sampled_position
 
 amplitude(event::AbstractEvent) = event.sampled_amplitude
+
+been_sampled(e::AbstractEvent) = amplitude(e) > 0
 
 function first_coordinate(event::AbstractEvent{N}) where {N}
     return (N > 1) ? position(event)[1] : position(event)

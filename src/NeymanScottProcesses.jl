@@ -46,7 +46,7 @@ export specify_gamma, mean, var
 
 export sample, log_prior, log_p_latents
 
-export GaussianNeymanScottModel, GaussianPriors, GaussianGlobals, Cluster, Point
+export GaussianNeymanScottModel, GaussianPriors, GaussianGlobals, GaussianCluster, RealObservation
 
 
 
@@ -78,7 +78,6 @@ include("plots.jl")
 
 # TODO
 # - [ ] Reincorporate SparseMultinomial and SparseDirichletMultinomial to `distributions.jl`
-
 # export log_joint
 # export split_merge_sample!, gibbs_sample!, annealed_gibbs!
 # export masked_gibbs!, annealed_masked_gibbs!, Mask
