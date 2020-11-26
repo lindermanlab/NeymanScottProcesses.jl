@@ -46,7 +46,7 @@ export specify_gamma, mean, var
 
 export sample, log_prior, log_p_latents
 
-export GaussianNeymanScottModel, GaussianPriors, GaussianGlobals, Cluster, Point
+export GaussianNeymanScottModel, GaussianPriors, GaussianGlobals, GaussianCluster, RealObservation
 
 
 

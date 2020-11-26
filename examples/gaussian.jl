@@ -3,7 +3,7 @@ using Plots
 
 bounds = (1.0, 1.0)
 
-K = 1.0  # event rate
+K = 4.0  # event rate
 Ak = specify_gamma(20.0, 3.0)  # event amplitude
 A0 = specify_gamma(20.0, 3.0)  # background amplitude
 Ψ = 1e-3 * [1.0 0; 0 1]  # covariance scale
