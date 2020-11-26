@@ -8,29 +8,47 @@ module NeymanScottProcesses
 import Base.Iterators
 import Distributions
 
+import StatsBase: sample
+
+
 
 # ===
 # IMPORTS
 # ===
 
 # Modules
-using LinearAlgebra
+using RecipesBase
 using Statistics
 using SparseArrays
+using StaticArrays
 
 # Methods
 using Distributions: cdf, mean, var
+using LinearAlgebra: norm
 using Random: AbstractRNG
 using SpecialFunctions: logabsgamma, logfactorial
-using StatsBase: sample, pweights, denserank, mean
+using StatsBase: pweights, denserank, mean
 using StatsFuns: softmax!, softmax, logaddexp, logsumexp, normlogpdf, normpdf
 
 # Distributions
 using Distributions: Categorical, Chisq, Normal, Poisson, TDist
 using Distributions: Dirichlet, Multinomial, MultivariateNormal, InverseWishart
 
+
+
+
+# ===
+# EXPORTS
+# ===
+
 export RateGamma, NormalInvChisq, ScaledInvChiseq, SymmetricDirichlet
 export specify_gamma, mean, var
+
+export sample, log_prior, log_p_latents
+
+export GaussianNeymanScottModel, GaussianPriors, GaussianGlobals, GaussianCluster, RealObservation
+
+
 
 
 # ===
@@ -40,7 +58,17 @@ export specify_gamma, mean, var
 include("utils.jl")
 include("distributions.jl")
 
+# Core types
+include("core/abstract.jl")  # Abstract types and basic functionality
+include("core/nsp.jl")  # Neyman-Scott Model
+include("core/interface.jl")  # Interface that models must implement
+include("core/eventlist.jl")  # Managing (non-parametric) events
 
+# Models
+include("models/gaussian.jl")
+
+# Plotting
+include("plots.jl")
 
 
 
@@ -49,15 +77,13 @@ include("distributions.jl")
 
 # import Base: size, rand, length, getindex, iterate, in
 
-# export log_joint, log_prior, log_p_latents
+# export log_joint
 # export split_merge_sample!, gibbs_sample!, annealed_gibbs!
 # export masked_gibbs!, annealed_masked_gibbs!, Mask
 # export create_random_mask, split_data_by_mask, create_blocked_mask, sample_masked_data!, sample_masked_data
 # export DistributedNeymanScottModel, make_distributed
-# export background_assignment_prob, new_cluster_assignment_prob, prob_ratio_vs_bkgd_temp, prob_ratio_vs_event_temp
 
 # export Spike, EventSummaryInfo, SeqHypers, SeqGlobals, PPSeq, DistributedPPSeq
-# export Point, GaussianEventSummary, GaussianPriors, GaussianGlobals, GaussianNeymanScottModel 
 # export Cable, CablesEventSummary, CablesPriors, CablesGlobals, CablesModel
 
 end

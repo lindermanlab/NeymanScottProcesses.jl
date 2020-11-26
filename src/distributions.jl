@@ -20,6 +20,8 @@ struct RateGamma
     β::Float64
 end
 
+posterior(volume::Real, n::Real, prior::RateGamma) = RateGamma(prior.α + n, prior.β + volume)
+
 posterior(count_var::Real, prior::RateGamma) = RateGamma(prior.α + count_var, prior.β + 1)
 
 Distributions.logpdf(g::RateGamma, x::Float64) = logpdf(Distributions.Gamma(g.α, 1 / g.β), x)
