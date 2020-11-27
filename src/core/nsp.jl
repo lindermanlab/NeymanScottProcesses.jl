@@ -57,10 +57,9 @@ Create a singleton latent event e = {s} containing datapoint `s` and return new
 assignment index `k`.
 """
 function add_event!(model::NeymanScottModel, s::AbstractDatapoint)
-    # Mark event k as non-empty.
-    k = add_event!(events(model))
-    # Add spike s to event k.
-    return add_datapoint!(model, s, k)
+    k = add_event!(events(model))  # Mark event k as non-empty.
+    add_datapoint!(model, s, k)  # Add spike s to event k.
+    return k
 end
 
 """
