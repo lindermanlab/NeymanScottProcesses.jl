@@ -1,31 +1,38 @@
-struct GibbsSampler
+struct GibbsSampler <: AbstractSampler
     verbose::Bool
     save_interval::Int
-    save_set::Vector{Symbol}
+    save_set::Union{Symbol, Tuple{Vararg{Symbol}}}
     num_samples::Int
 end
 
+GibbsSampler(; verbose=true, save_interval=1, save_set=:all, num_samples=100) = 
+    GibbsSampler(verbose, save_interval, save_set, num_samples)
+
 function (S::GibbsSampler)(
     model::NeymanScottModel, 
-    data::Vector{<: AbstractDatapoint}, 
-    initial_assignments::Vector{Int64},
+    data::Vector{<: AbstractDatapoint};
+    initial_assignments::Union{Symbol, Vector{Int64}}=:background
 )
     verbose, save_interval, num_samples = S.verbose, S.save_interval, S.num_samples
+
+    if initial_assignments === :background
+        initial_assignments = fill(-1, length(data))
+    end
 
     # Initialize spike assignments.
     assignments = deepcopy(initial_assignments)
     recompute_statistics!(model, data, assignments)
 
     # Initialize the globals using a custom function and reset model probabilities
-    initialize_globals!(model, data, assignments)
-    _reset_model_probs(model)
+    gibbs_initialize_globals!(model, data, assignments)
+    _reset_model_probs!(model)
 
     results = initialize_results(model, assignments, S)
     spike_order = collect(1:length(data))
 
     for s in 1:num_samples
 
-        Random.shuffle!(spike_order)  # Update spike assignments in random order.
+        shuffle!(spike_order)  # Update spike assignments in random order.
         for i in spike_order
 
             if assignments[i] != -1
@@ -34,14 +41,14 @@ function (S::GibbsSampler)(
                 remove_bkgd_datapoint!(model, data[i])
             end
 
-            assignments[i] = gibbs_add_datapoint!(model, data[i], S.H)
+            assignments[i] = gibbs_add_datapoint!(model, data[i])
         end
 
         # Update latent events and global variables
-        gibbs_update_latents!(model)
-        gibbs_update_globals!(model, data, assignments)
+        gibbs_sample_latents!(model)
+        gibbs_sample_globals!(model, data, assignments)
 
-        _reset_model_probs(model)  # Recompute background and new cluster probabilities
+        _reset_model_probs!(model)  # Recompute background and new cluster probabilities
         recompute_statistics!(model, data, assignments)  # Recompute event statistics
 
         # Store results
@@ -85,7 +92,7 @@ function gibbs_add_datapoint!(model::NeymanScottModel, x::AbstractDatapoint)
     K = num_events(model)
     
     # Grab vector without allocating new memory.
-    log_probs = resize!(model._K_buffer, K + 2)
+    log_probs = resize!(model.K_buffer, K + 2)
 
     # Iterate over model events, indexed by k = {1, 2, ..., K}.
     for (k, event) in enumerate(events(model))
@@ -116,7 +123,7 @@ function gibbs_add_datapoint!(model::NeymanScottModel, x::AbstractDatapoint)
 
     # New sample corresponds to background, do nothing.
     if z == (K + 2)
-        add_background_datapoint!(model, x)
+        add_bkgd_datapoint!(model, x)
         return -1
 
     # New sample corresponds to new sequence event / cluster.
@@ -137,7 +144,7 @@ end
 """
 Resamples latent event variables.
 """
-function gibbs_update_latents!(model::NeymanScottModel)
+function gibbs_sample_latents!(model::NeymanScottModel)
     for event in events(model)
         gibbs_sample_event!(event, model)
     end

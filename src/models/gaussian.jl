@@ -67,7 +67,8 @@ end
 
 mutable struct GaussianCluster{N} <: AbstractEvent{N}
     datapoint_count::Int
-    moments::Tuple{SVector{N, Float64}, SMatrix{N, N, Float64}}
+    first_moment::SVector{N, Float64}
+    second_moment::SMatrix{N, N, Float64}
 
     sampled_position
     sampled_covariance
@@ -139,15 +140,16 @@ constructor_args(e::GaussianCluster) = ()
 
 function GaussianCluster(μ, Σ, A)
     N = length(μ)
-    return GaussianCluster{N}(0, (zeros(SVector{N}), zeros(SMatrix{N, N})), μ, Σ, A)
+    return GaussianCluster{N}(0, zeros(SVector{N}), zeros(SMatrix{N, N}), μ, Σ, A)
 end
 
 function GaussianCluster{N}() where {N}
     return GaussianCluster(
         0,
-        (zeros(SVector{2}), zeros(SMatrix{2, 2})),
-        zeros(SVector{2}),
-        zeros(SMatrix{2, 2}),
+        zeros(SVector{N}), 
+        zeros(SMatrix{N, N}),
+        zeros(SVector{N}),
+        zeros(SMatrix{N, N}),
         NOT_SAMPLED_AMPLITUDE
     )
 end
@@ -204,8 +206,8 @@ end
 
 function reset!(e::GaussianCluster)
     e.datapoint_count = 0
-    e.moments[1] .= 0
-    e.moments[2] .= 0
+    e.first_moment = zeros(typeof(e.first_moment))
+    e.second_moment = zeros(typeof(e.second_moment))
 end
 
 function remove_datapoint!(
@@ -220,8 +222,8 @@ function remove_datapoint!(
     (e.datapoint_count == 1) && (return remove_event!(events(model), k))
 
     e.datapoint_count -= 1
-    e.moments[1] .-= position(x)
-    e.moments[2] -= position(x) * position(x)'
+    e.first_moment -= position(x)
+    e.second_moment -= position(x) * position(x)'
 
     recompute_posterior && set_posterior!(model, k)
 
@@ -237,8 +239,8 @@ function add_datapoint!(
     e = events(model)[k]
 
     e.datapoint_count += 1
-    e.moments[1] .+= position(x)
-    e.moments[2] .+= position(x) * position(x)'
+    e.first_moment += position(x)
+    e.second_moment += position(x) * position(x)'
 
     recompute_posterior && set_posterior!(model, k)
 
@@ -252,17 +254,18 @@ end
 # PROBABILITIES
 # ===
 
-bkgd_intensity(m::GaussianNeymanScottModel, x::RealObservation) = bkgd_rate(globals(m))
+log_bkgd_intensity(m::GaussianNeymanScottModel, x::RealObservation) =
+    log(bkgd_rate(globals(m)))
 
-event_intensity(m::GaussianNeymanScottModel, e::GaussianCluster, x::RealObservation) =
-    _multinormpdf(position(e), covariance(e), position(x))
+log_event_intensity(m::GaussianNeymanScottModel, e::GaussianCluster, x::RealObservation) =
+    log(_multinormpdf(position(e), covariance(e), position(x)))
 
 log_prior(model::GaussianNeymanScottModel) =
     logpdf(bkgd_amplitude(priors(model)), bkgd_rate(globals(model)))
 
 bkgd_log_like(m::GaussianNeymanScottModel, d::RealObservation) = -log(volume(m))
 
-log_posterior_predictive(d::RealObservation, m::GaussianNeymanScottModel) = -log(area(m))
+log_posterior_predictive(d::RealObservation, m::GaussianNeymanScottModel) = -log(volume(m))
 
 function log_p_latents(model::GaussianNeymanScottModel)
     priors = get_priors(model)
@@ -293,10 +296,10 @@ function log_posterior_predictive(
 )
     # See https://www.cs.ubc.ca/~murphyk/Papers/bayesGauss.pdf
     # Extract first and second moments
-    dim = length(fm)
     n = event.datapoint_count
-    fm = event.moments[1]
-    sm = event.moments[2]
+    fm = event.first_moment
+    sm = event.second_moment
+    dim = length(fm)
     
     # Compute number of observations
     κ0 = model.priors.mean_pseudo_obs
@@ -371,14 +374,16 @@ function gibbs_sample_event!(event::GaussianCluster, model::GaussianNeymanScottM
     Ψ = priors.covariance_scale
 
     n = datapoint_count(event)
+    fm = event.first_moment
+    sm = event.second_moment
 
     @assert (n > 0)
 
-    x̄ = event.moments[1] / n  # Emprical mean
-    S = event.moments[2] - (n * x̄ * x̄')  # Centered second moment
+    x̄ = fm / n  # Emprical mean
+    S = sm - (n * x̄ * x̄')  # Centered second moment
     Λ = ((Ψ + S) + (Ψ + S)') / 2  # Inverse Wishart posterior
 
-    Σ = rand(InverseWishart(ν + n, Λ))
+    Σ = rand(InverseWishart(ν + n, Matrix(Λ)))
 
     event.sampled_amplitude = rand(posterior(n, A0))
     event.sampled_position = rand(MultivariateNormal(x̄, Σ / n))
@@ -387,7 +392,7 @@ end
 
 function gibbs_sample_globals!(
     model::GaussianNeymanScottModel, 
-    data::Vector{RealObservation}, 
+    data::Vector{<: RealObservation}, 
     assignments::Vector{Int}
 )
     priors = get_priors(model)

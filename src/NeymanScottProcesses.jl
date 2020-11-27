@@ -24,8 +24,8 @@ using StaticArrays
 
 # Methods
 using Distributions: cdf, mean, var
-using LinearAlgebra: norm
-using Random: AbstractRNG
+using LinearAlgebra: norm, logdet, det
+using Random: AbstractRNG, shuffle!
 using SpecialFunctions: logabsgamma, logfactorial
 using StatsBase: pweights, denserank, mean
 using StatsFuns: softmax!, softmax, logaddexp, logsumexp, normlogpdf, normpdf
@@ -45,7 +45,9 @@ export RateGamma, NormalInvChisq, ScaledInvChiseq, SymmetricDirichlet
 export specify_gamma, mean, var
 
 export sample, log_prior, log_p_latents
+export GibbsSampler
 
+# Models
 export GaussianNeymanScottModel, GaussianPriors, GaussianGlobals, GaussianCluster, RealObservation
 
 

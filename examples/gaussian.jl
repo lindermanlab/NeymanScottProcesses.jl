@@ -1,17 +1,52 @@
+using LinearAlgebra: I
 using NeymanScottProcesses
 using Plots
+using Random: seed!
 
-bounds = (1.0, 1.0)
+seed!(1234)
 
-K = 4.0  # event rate
-Ak = specify_gamma(20.0, 3.0)  # event amplitude
-A0 = specify_gamma(20.0, 3.0)  # background amplitude
-Ψ = 1e-3 * [1.0 0; 0 1]  # covariance scale
-ν = 5.0  # covariance degrees of freedom
 
-priors = GaussianPriors(K, Ak, A0, Ψ, ν)
+# ===
+# PARAMETERS
+# ===
+
+dim = 2  # Dimension of the data
+bounds = Tuple(4.0 for _ in 1:dim)  # Model bounds
+
+K = 4.0  # Event rate
+Ak = specify_gamma(20.0, 3.0)  # Event amplitude
+A0 = specify_gamma(20.0, 3.0)  # Background amplitude
+
+Ψ = 1e-3 * I(dim)  # Covariance scale
+ν = 5.0  # Covariance degrees of freedom
+
+
+# ===
+# GENERATIVE MODEL
+# ===
+
+gen_priors = GaussianPriors(K, Ak, A0, Ψ, ν)
+gen_model = GaussianNeymanScottModel(bounds, gen_priors)
+
+data, assignments, events = sample(gen_model; resample_latents=true)
+
+# Visualize results
+p1 = plot(data, assignments, xlim=(0, 2), ylim=(0, 2), title="")
+@show length(data)
+display(p1)
+
+
+# ===
+# INFERENCE
+# ===
+
+priors = deepcopy(gen_priors)
+priors.event_amplitude = specify_gamma(20.0, (20.0)^2)
+
 model = GaussianNeymanScottModel(bounds, priors)
+sampler = GibbsSampler(num_samples=100, save_interval=5)
+results = sampler(model, data)
 
-data, assignments, events = sample(model; resample_latents=true)
-
-plot(data, assignments)
+# Visualize results
+p2 = plot(data, last(results.assignments), xlim=(0, 2), ylim=(0, 2), title="estimate")
+plot(p1, p2, layout=(1, 2), size=(800, 400))

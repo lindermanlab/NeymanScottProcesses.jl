@@ -1,13 +1,5 @@
 abstract type AbstractSampler end
 
-VALID_SAVE_SET = (
-    GibbsSampler = (:log_p, :assignments, :events, :globals),
-
-)
-
-
-
-
 is_verbose(S::AbstractSampler) = S.verbose
 
 get_save_interval(S::AbstractSampler) = S.save_interval
@@ -15,6 +7,8 @@ get_save_interval(S::AbstractSampler) = S.save_interval
 get_save_set(S::AbstractSampler) = S.save_set
 
 get_num_samples(S::AbstractSampler) = S.num_samples
+
+valid_save_set(::AbstractSampler) = (:log_p, :assignments, :events, :globals)
 
 
 
@@ -32,10 +26,13 @@ function initialize_results(model, assignments, S::AbstractSampler)
     save_interval, save_set, num_samples = S.save_interval, S.save_set, S.num_samples
 
     n_saved_samples = Int(round(num_samples / save_interval))
+    if save_set === :all
+        save_set = valid_save_set(S)
+    end
 
-    results = Dict()
+    results = Dict{Symbol, Any}()
     for key in save_set
-        @assert key in VALID_SAVE_SET[typeof(S)]
+        @assert key in valid_save_set(S)
         results[key] = []
     end
 
@@ -45,6 +42,10 @@ end
 """Update sampler results."""
 function update_results!(results, model, assignments, data, S::AbstractSampler)
     save_set = S.save_set
+
+    if save_set == :all
+        save_set = valid_save_set(S)
+    end
 
     if :log_p in save_set
         push!(results[:log_p], log_like(model, data))

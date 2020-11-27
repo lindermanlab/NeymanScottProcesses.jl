@@ -172,17 +172,6 @@ function gibbs_sample_globals!(
 end
 
 """
-(OPTIONAL) Initialize global variables and their sufficient statistics, if necessary.
-"""
-function gibbs_initialize_globals!(
-    model::NeymanScottModel, 
-    data::Vector{<: AbstractDatapoint}, 
-    assignments::Vector{Int}
-)
-    return nothing
-end
-
-"""
 (OPTIONAL) Update global variable sufficient statistics after removing `x` from the 
 background process.
 """
@@ -193,6 +182,17 @@ add_bkgd_datapoint!(model::NeymanScottModel, x::AbstractDatapoint) = nothing
 background process.
 """
 remove_bkgd_datapoint!(model::NeymanScottModel, x::AbstractDatapoint) = nothing
+
+"""
+(OPTIONAL) Initialize global variables and their sufficient statistics, if necessary.
+"""
+function gibbs_initialize_globals!(
+    model::NeymanScottModel, 
+    data::Vector{<: AbstractDatapoint}, 
+    assignments::Vector{Int}
+)
+    return nothing
+end
 
 
 
