@@ -52,7 +52,7 @@ priors = deepcopy(gen_priors)
 model = GaussianNeymanScottModel(bounds, priors)
 
 # Construct sampler
-subsampler = GibbsSampler(num_samples=100, save_interval=5)
+subsampler = GibbsSampler(num_samples=200, save_interval=5)
 sampler = Annealer(subsampler, 200.0, :event_amplitude_var)
 
 # Run sampler

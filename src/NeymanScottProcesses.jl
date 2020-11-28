@@ -47,11 +47,7 @@ export RateGamma, NormalInvChisq, ScaledInvChiseq, SymmetricDirichlet
 
 # Sampling and inference
 export sample, log_prior, log_p_latents
-<<<<<<< HEAD
 export GibbsSampler, Annealer
-=======
-export GibbsSampler
->>>>>>> main
 
 # Models
 export GaussianNeymanScottModel, GaussianPriors, GaussianGlobals, GaussianCluster, RealObservation
