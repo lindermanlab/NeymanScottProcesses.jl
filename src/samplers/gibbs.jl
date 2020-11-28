@@ -1,12 +1,12 @@
 struct GibbsSampler <: AbstractSampler
     verbose::Bool
     save_interval::Int
-    save_set::Union{Symbol, Tuple{Vararg{Symbol}}}
+    save_keys::Union{Symbol, Tuple{Vararg{Symbol}}}
     num_samples::Int
 end
 
-GibbsSampler(; verbose=true, save_interval=1, save_set=:all, num_samples=100) = 
-    GibbsSampler(verbose, save_interval, save_set, num_samples)
+GibbsSampler(; verbose=true, save_interval=1, save_keys=:all, num_samples=100) = 
+    GibbsSampler(verbose, save_interval, save_keys, num_samples)
 
 function (S::GibbsSampler)(
     model::NeymanScottModel, 
@@ -121,7 +121,7 @@ function gibbs_add_datapoint!(model::NeymanScottModel, x::AbstractDatapoint)
     # Sample new assignment for spike x.
     z = sample_logprobs!(log_probs)
 
-    # New sample corresponds to background, do nothing.
+    # New sample corresponds to background.
     if z == (K + 2)
         add_bkgd_datapoint!(model, x)
         return -1

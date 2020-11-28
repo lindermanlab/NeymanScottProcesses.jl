@@ -1,14 +1,26 @@
+"""
+    AbstractSampler
+
+An abstract base type for samplers. Subtypes `S::Sampler` must implement the following 
+properties
+
+    S.verbose
+    S.save_interval
+    S.save_keys
+    S.num_samples
+
+And the following methods
+
+    (optional) valid_save_keys(S::Sampler)
+    (S::Sampler)(
+        model::NeymanScottModel, 
+        data::Vector{<: AbstractDatapoint};
+        initial_assignments::Union{Symbol, Vector{Int64}}=:background
+    )
+"""
 abstract type AbstractSampler end
 
-is_verbose(S::AbstractSampler) = S.verbose
-
-get_save_interval(S::AbstractSampler) = S.save_interval
-
-get_save_set(S::AbstractSampler) = S.save_set
-
-get_num_samples(S::AbstractSampler) = S.num_samples
-
-valid_save_set(::AbstractSampler) = (:log_p, :assignments, :events, :globals)
+valid_save_keys(::AbstractSampler) = (:log_p, :assignments, :events, :globals)
 
 
 
@@ -23,16 +35,16 @@ _namedtuple(d::Dict{Symbol,T}) where {T} = NamedTuple{_dictkeys(d)}(_dictvalues(
 
 """Initialize sampler results."""
 function initialize_results(model, assignments, S::AbstractSampler)
-    save_interval, save_set, num_samples = S.save_interval, S.save_set, S.num_samples
+    save_interval, save_keys, num_samples = S.save_interval, S.save_keys, S.num_samples
 
     n_saved_samples = Int(round(num_samples / save_interval))
-    if save_set === :all
-        save_set = valid_save_set(S)
+    if save_keys === :all
+        save_keys = valid_save_keys(S)
     end
 
     results = Dict{Symbol, Any}()
-    for key in save_set
-        @assert key in valid_save_set(S)
+    for key in save_keys
+        @assert key in valid_save_keys(S)
         results[key] = []
     end
 
@@ -41,25 +53,25 @@ end
 
 """Update sampler results."""
 function update_results!(results, model, assignments, data, S::AbstractSampler)
-    save_set = S.save_set
+    save_keys = S.save_keys
 
-    if save_set == :all
-        save_set = valid_save_set(S)
+    if save_keys == :all
+        save_keys = valid_save_keys(S)
     end
 
-    if :log_p in save_set
+    if :log_p in save_keys
         push!(results[:log_p], log_like(model, data))
     end
 
-    if :assignments in save_set
+    if :assignments in save_keys
         push!(results[:assignments], deepcopy(assignments))
     end
 
-    if :latents in save_set
+    if :latents in save_keys
         push!(results[:events], deepcopy(event_list_summary(model)))
     end
 
-    if :globals in save_set
+    if :globals in save_keys
         push!(results[:globals], deepcopy(get_globals(model)))
     end
 
