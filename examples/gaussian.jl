@@ -6,6 +6,8 @@ using Random: seed!
 seed!(1234)
 
 
+
+
 # ===
 # PARAMETERS
 # ===
@@ -21,6 +23,8 @@ A0 = specify_gamma(20.0, 3.0)  # Background amplitude
 ν = 5.0  # Covariance degrees of freedom
 
 
+
+
 # ===
 # GENERATIVE MODEL
 # ===
@@ -34,6 +38,8 @@ data, assignments, events = sample(gen_model; resample_latents=true)
 p1 = plot(data, assignments, xlim=(0, 2), ylim=(0, 2), title="")
 @show length(data)
 display(p1)
+
+
 
 
 # ===
