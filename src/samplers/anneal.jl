@@ -55,7 +55,9 @@ function (S::Annealer)(
         model.priors = anneal_fn(new_priors, temp)
         _reset_model_probs!(model)
 
+        # Run subsampler and store results
         new_results = subsampler(model, data; initial_assignments=assignments)
+        assignments = last(new_results.assignments)
         append_results!(results, new_results, S)
     end
 

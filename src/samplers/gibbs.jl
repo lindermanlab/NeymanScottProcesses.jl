@@ -19,8 +19,6 @@ function (S::GibbsSampler)(
     assignments = initialize_assignments(data, initial_assignments)
     recompute_statistics!(model, data, assignments)
 
-    @show assignments
-
     # Initialize the globals using a custom function and reset model probabilities
     gibbs_initialize_globals!(model, data, assignments)
     _reset_model_probs!(model)
