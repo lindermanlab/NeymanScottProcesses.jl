@@ -69,6 +69,7 @@ include("core/eventlist.jl")  # Managing (non-parametric) events
 # Samplers
 include("samplers/base.jl")
 include("samplers/gibbs.jl")
+include("samplers/anneal.jl")
 
 # Models
 include("models/gaussian.jl")
@@ -79,11 +80,11 @@ include("plots.jl")
 
 
 # TODO
-# - [ ] Reincorporate SparseMultinomial and SparseDirichletMultinomial to `distributions.jl`
+# - Reincorporate SparseMultinomial and SparseDirichletMultinomial to `distributions.jl`
+
 # export log_joint
-# export split_merge_sample!, gibbs_sample!, annealed_gibbs!
-# export masked_gibbs!, annealed_masked_gibbs!, Mask
-# export create_random_mask, split_data_by_mask, create_blocked_mask, sample_masked_data!, sample_masked_data
+# export split_merge_sample!, annealed_gibbs!, masked_gibbs!, annealed_masked_gibbs!
+# export Mask, create_random_mask, split_data_by_mask, create_blocked_mask, sample_masked_data!, sample_masked_data
 # export DistributedNeymanScottModel, make_distributed
 
 # export Spike, EventSummaryInfo, SeqHypers, SeqGlobals, PPSeq, DistributedPPSeq
