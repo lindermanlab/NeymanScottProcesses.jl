@@ -31,7 +31,7 @@ valid_save_keys(::AbstractSampler) = (:log_p, :assignments, :events, :globals)
 
 _dictkeys(d::Dict) = (collect(keys(d))...,)
 _dictvalues(d::Dict) = (collect(values(d))...,)
-_namedtuple(d::Dict{Symbol,T}) where {T} = NamedTuple{_dictkeys(d)}(_dictvalues(d))
+_namedtuple(d::Dict) = NamedTuple{_dictkeys(d)}(_dictvalues(d))
 
 """Initialize sampler results."""
 function initialize_results(model, assignments, S::AbstractSampler)
