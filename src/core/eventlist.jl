@@ -84,7 +84,7 @@ end
 """
 Recompute sufficient statistics for all sequence events.
 """
-function recompute!(
+function recompute_statistics!(
     model::NeymanScottModel,
     datapoints::Vector{<: AbstractDatapoint},
     assignments::AbstractVector{Int64}

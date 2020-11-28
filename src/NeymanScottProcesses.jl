@@ -24,8 +24,8 @@ using StaticArrays
 
 # Methods
 using Distributions: cdf, mean, var
-using LinearAlgebra: norm
-using Random: AbstractRNG
+using LinearAlgebra: norm, logdet, det
+using Random: AbstractRNG, shuffle!
 using SpecialFunctions: logabsgamma, logfactorial
 using StatsBase: pweights, denserank, mean
 using StatsFuns: softmax!, softmax, logaddexp, logsumexp, normlogpdf, normpdf
@@ -45,7 +45,9 @@ export RateGamma, NormalInvChisq, ScaledInvChiseq, SymmetricDirichlet
 export specify_gamma, mean, var
 
 export sample, log_prior, log_p_latents
+export GibbsSampler
 
+# Models
 export GaussianNeymanScottModel, GaussianPriors, GaussianGlobals, GaussianCluster, RealObservation
 
 
@@ -64,6 +66,10 @@ include("core/nsp.jl")  # Neyman-Scott Model
 include("core/interface.jl")  # Interface that models must implement
 include("core/eventlist.jl")  # Managing (non-parametric) events
 
+# Samplers
+include("samplers/base.jl")
+include("samplers/gibbs.jl")
+
 # Models
 include("models/gaussian.jl")
 
@@ -74,9 +80,6 @@ include("plots.jl")
 
 # TODO
 # - [ ] Reincorporate SparseMultinomial and SparseDirichletMultinomial to `distributions.jl`
-
-# import Base: size, rand, length, getindex, iterate, in
-
 # export log_joint
 # export split_merge_sample!, gibbs_sample!, annealed_gibbs!
 # export masked_gibbs!, annealed_masked_gibbs!, Mask
