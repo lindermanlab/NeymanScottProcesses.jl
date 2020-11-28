@@ -41,11 +41,13 @@ using Distributions: Dirichlet, Multinomial, MultivariateNormal, InverseWishart
 # EXPORTS
 # ===
 
-export RateGamma, NormalInvChisq, ScaledInvChiseq, SymmetricDirichlet
+# Distributions
 export specify_gamma, mean, var
+export RateGamma, NormalInvChisq, ScaledInvChiseq, SymmetricDirichlet
 
+# Sampling and inference
 export sample, log_prior, log_p_latents
-export GibbsSampler
+export GibbsSampler, Annealer
 
 # Models
 export GaussianNeymanScottModel, GaussianPriors, GaussianGlobals, GaussianCluster, RealObservation
@@ -83,11 +85,11 @@ include("plots.jl")
 # - Reincorporate SparseMultinomial and SparseDirichletMultinomial to `distributions.jl`
 
 # export log_joint
-# export split_merge_sample!, annealed_gibbs!, masked_gibbs!, annealed_masked_gibbs!
+# export split_merge_sample!, masked_gibbs!, annealed_masked_gibbs!
 # export Mask, create_random_mask, split_data_by_mask, create_blocked_mask, sample_masked_data!, sample_masked_data
 # export DistributedNeymanScottModel, make_distributed
 
-# export Spike, EventSummaryInfo, SeqHypers, SeqGlobals, PPSeq, DistributedPPSeq
+# export Spike, EventSummaryInfo, SeqHypers, SeqGlobals, PPSeq
 # export Cable, CablesEventSummary, CablesPriors, CablesGlobals, CablesModel
 
 end

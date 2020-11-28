@@ -86,13 +86,13 @@ end
 Append results from a subsampler to its parent's results.
 """
 function append_results!(results, new_results, S::AbstractSampler)
-    save_set = S.save_set
+    save_keys = S.save_keys
 
-    if save_set == :all
-        save_set = valid_save_set(S)
+    if save_keys == :all
+        save_keys = valid_save_keys(S)
     end
 
-    for key in save_set
+    for key in save_keys
         append!(results[key], new_results[key])
     end
 
