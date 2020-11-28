@@ -48,7 +48,6 @@ display(p1)
 
 # Create model for inference
 priors = deepcopy(gen_priors)
-#priors.event_amplitude = specify_gamma(20.0, (20.0)^2)
 model = GaussianNeymanScottModel(bounds, priors)
 
 # Construct sampler
