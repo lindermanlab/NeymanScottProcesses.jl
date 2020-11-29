@@ -197,5 +197,34 @@ end
 
 
 
+# ===
+# MASKING
+# ===
+# The following methods are required to implement masked samplers.
 
+"""
+Compute whether or not `x` is in the region masked of by `mask`."""
+Base.in(x::AbstractDatapoint, mask::AbstractMask) = notimplemented()
 
+"""
+Compute the volume occupied by the mask.
+"""
+volume(mask::AbstractMask) = notimplemented()
+
+"""
+The integrated background intensity in the masked off region. If the background intensity
+is uniform, there is no need to override this method.
+"""
+integrated_bkgd_intensity(model::NeymanScottModel, mask::AbstractMask) =
+    bkgd_rate(model.globals) * volume(mask)
+
+"""
+The integrated event intensity in the masked off region. 
+"""
+integrated_event_intensity(model::NeymanScottModel, event::AbstractEvent,  mask::AbstractMask) = 
+    notimplemented()
+
+"""
+"""
+compute_complementary_masks(masks::Vector{<: AbstractMask}, model::NeymanScottModel) =
+    notimplemented()
