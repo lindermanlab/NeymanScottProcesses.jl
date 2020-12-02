@@ -100,6 +100,16 @@ const GaussianNeymanScottModel{N} = NeymanScottModel{
     GaussianPriors
 }
 
+struct GaussianMask{N} <: AbstractMask
+    center::SVector{N, Float64}
+    radius::Float64
+end
+
+struct GaussianComplementMask <: AbstractMask
+    masks::Vector{GaussianMask}
+    bounds::SVector{N, Float64}
+end
+
 
 
 
@@ -404,4 +414,31 @@ function gibbs_sample_globals!(
     # Update background rate
     A0 = bkgd_amplitude(priors)
     globals.bkgd_rate = rand(posterior(volume(model), n0, A0))
+end
+
+
+
+
+# ===
+# MASKING
+# ===
+Base.in(x::RealObservation, mask::GaussianMask) = 
+    (norm(x.position .- mask.center) < mask.radius)
+
+Base.in(x::Point, comp_mask::GaussianComplementMask) = !(x in comp_mask.masks)
+
+volume(mask::GaussianMask) = π * mask.radius^2
+
+function volume(complement_mask::GaussianComplementMask; num_samples=1000)
+    num_in_complement_mask = 0
+    (a1, a2) = complement_mask.bounds
+
+    for i in 1:num_samples
+        x = Point([rand()*a1, rand()*a2])
+        if x in complement_mask
+            num_in_complement_mask += 1
+        end
+    end
+
+    return (a1*a2) * (num_in_complement_mask / num_samples)
 end

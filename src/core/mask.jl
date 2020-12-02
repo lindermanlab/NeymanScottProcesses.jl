@@ -10,12 +10,6 @@ Base.in(x::AbstractDatapoint, masks::Vector{<: AbstractMask}) =
     (findfirst(m -> (x ∈ m), masks) !== nothing)
 
 """
-Return true if for all `x ∈ data`, `x ∈ m` for some `m ∈ masks`.
-"""
-Base.in(data::Vector{<: AbstractDatapoint}, masks::Vector{<: AbstractMask}) =
-    (findfirst(x -> (x ∉ masks), data) === nothing)
-
-"""
 Compute percent of model that is masked by `masks`. Assumes disjoint masks.
 """
 masked_proportion(model::NeymanScottModel, masks::Vector{<: AbstractMask}) =
@@ -42,8 +36,6 @@ function split_data_by_mask(
 
     return masked_data, unmasked_data
 end
-
-
 
 
 
@@ -86,7 +78,7 @@ end
 """
 Compute log-likelihood of a homogeneous poisson process of data within a masked region.
 """
-function homogeneous_baseline_log_like(
+function _homogeneous_baseline_log_like(
     data::Vector{<: AbstractDatapoint}, 
     masks::Vector{<: AbstractMask}
 )
