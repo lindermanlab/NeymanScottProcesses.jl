@@ -34,12 +34,15 @@ function (S::MaskedSampler)(
 
     # Sanity check.
     @assert length(unmasked_data) === length(initial_assignments)
-    _check_masking_sanity(unmasked_data, masked_data, masks, inv_masks)
+    all_data_in_masks(unmasked_data, inv_masks)
+    all_data_in_masks(masked_data, masks)
+    all_data_not_in_masks(unmasked_data, masks)
+    all_data_not_in_masks(masked_data, inv_masks)
 
     # Compute relative masked volume and baselines
     pc_masked = 1 - masked_proportion(model, inv_masks)
     train_baseline = baseline_log_like(unmasked_data, inv_masks)
-    test_baseline = (masked_data !== nothing) ? baseline_log_like(masked_data, masks) : 0.0
+    test_baseline = (masked_data === nothing) ? 0.0 : baseline_log_like(masked_data, masks)
 
     # Initialize assignments, results, and sampled data
     unmasked_assignments = initialize_assignments(unmasked_data, initial_assignments)
@@ -62,14 +65,8 @@ function (S::MaskedSampler)(
 
         # Update results
         append_results!(results, new_results, subsampler)
-        push!(results.train_log_p, log_like(model, unmasked_data, inv_masks)) - train_baseline
-        
-        # If masked data is available as well, compute test log likelihood
-        if masked_data !== nothing
-            push!(results.test_log_p, log_like(model, masked_data, masks) - test_baseline)
-        else
-            push!(results.test_log_p, 0.0)
-        end
+        push!(results.train_log_p, normalized_log_like(model, unmasked_data, inv_masks, train_baseline))
+        push!(results.test_log_p, normalized_log_like(model, masked_data, masks, test_baseline))
 
         verbose && print(i * samples_per_resample, "-")
     end
@@ -83,12 +80,10 @@ function (S::MaskedSampler)(
     return results
 end
 
-function _check_masking_sanity(unmasked_data, masked_data, masks, inv_masks)
-    @assert all([x ∈ inv_masks for x in unmasked_data])
-    @assert all([x ∉ masks for x in unmasked_data])
+all_data_in_masks(data, masks) = (data === nothing) || all([x ∈ masks for x in data])
 
-    if masked_data !== nothing
-        @assert all([x ∈ masks for x in masked_data])
-        @assert all([x ∉ inv_masks for x in masked_data])
-    end
-end
+all_data_not_in_masks(data, masks) = (data === nothing) || all([x ∉ masks for x in data])
+
+normalized_log_like(model, data, masks, baseline) =
+    (data == nothing) ? 0.0 : log_like(model, data, masks) - baseline
+

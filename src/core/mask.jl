@@ -6,8 +6,7 @@ AbstractMask
 """
 Return true if `x ∈ m` for some `m ∈ masks`.
 """
-Base.in(x::AbstractDatapoint, masks::Vector{<: AbstractMask}) =
-    (findfirst(m -> (x ∈ m), masks) !== nothing)
+Base.in(x::AbstractDatapoint, masks::Vector{<: AbstractMask}) = any(m -> (x ∈ m), masks)
 
 """
 Compute percent of model that is masked by `masks`. Assumes disjoint masks.
@@ -94,6 +93,19 @@ end
 """
 Impute missing data.
 """
+function sample_masked_data(
+    model::NeymanScottModel{N, D, E, P, G}, 
+    masks::Vector{<: AbstractMask}
+) where {N, D, E, P, G}
+    data = D[]
+    assgn = Int[]
+
+    return sample_masked_data!(data, assgn, model, masks)
+end
+
+"""
+Impute missing data.
+"""
 function sample_masked_data!(
     data::Vector{<: AbstractDatapoint},
     assignments::Vector{Int64},
@@ -123,17 +135,4 @@ function sample_masked_data!(
     end
 
     return data, assignments
-end
-
-"""
-Impute missing data.
-"""
-function sample_masked_data(
-    model::NeymanScottModel{N, D, E, P, G}, 
-    masks::Vector{<: AbstractMask}
-) where {N, D, E, P, G}
-    data = D[]
-    assgn = Int[]
-
-    return sample_masked_data!(data, assgn, model, masks)
 end

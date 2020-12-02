@@ -26,7 +26,7 @@ using StaticArrays
 using Distributions: cdf, mean, var
 using LinearAlgebra: norm, logdet, det
 using Random: AbstractRNG, shuffle!
-using SpecialFunctions: logabsgamma, logfactorial
+using SpecialFunctions: logabsgamma, logfactorial, gamma
 using StatsBase: pweights, denserank, mean
 using StatsFuns: softmax!, softmax, logaddexp, logsumexp, normlogpdf, normpdf
 

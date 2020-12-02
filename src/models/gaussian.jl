@@ -100,13 +100,13 @@ const GaussianNeymanScottModel{N} = NeymanScottModel{
     GaussianPriors
 }
 
-struct GaussianMask{N} <: AbstractMask
+struct CircleMask{N} <: AbstractMask
     center::SVector{N, Float64}
     radius::Float64
 end
 
-struct GaussianComplementMask <: AbstractMask
-    masks::Vector{GaussianMask}
+struct CircleComplementMask{N} <: AbstractMask
+    masks::Vector{CircleMask{N}}
     bounds::SVector{N, Float64}
 end
 
@@ -422,23 +422,45 @@ end
 # ===
 # MASKING
 # ===
-Base.in(x::RealObservation, mask::GaussianMask) = 
+Base.in(x::RealObservation, mask::CircleMask) = 
     (norm(x.position .- mask.center) < mask.radius)
 
 Base.in(x::Point, comp_mask::GaussianComplementMask) = !(x in comp_mask.masks)
 
-volume(mask::GaussianMask) = π * mask.radius^2
+volume(mask::CircleMask{N}) where {N} = π^(N/2) * mask.radius^N / gamma(N/2 + 1)
 
-function volume(complement_mask::GaussianComplementMask; num_samples=1000)
+function volume(complement_mask::CircleComplementMask; num_samples=1000)
+    bounds = complement_mask.bounds
+    N = length(bounds)
+
     num_in_complement_mask = 0
-    (a1, a2) = complement_mask.bounds
-
     for i in 1:num_samples
-        x = Point([rand()*a1, rand()*a2])
+        x = RealObservation{N}(rand(N) .* bounds)
         if x in complement_mask
             num_in_complement_mask += 1
         end
     end
 
-    return (a1*a2) * (num_in_complement_mask / num_samples)
+    return prod(bounds) * (num_in_complement_mask / num_samples)
+end
+
+function create_random_mask(model::GaussianNeymanScottModel, radii::Real, pc_masked::Real)
+    bounds = model.bounds
+    N = length(bounds)
+    volume = prod(bounds .- radii)
+
+    @assert minimum(bounds) > radii
+
+    # Fill box with disjoint masks
+    masks = CircleMask{N}[]
+    points = Iterators.product([radii:radii:(M-radii) for M in bounds]...)
+
+    for _p in points
+        p = @SVector _p
+        push!(masks, CircleMask{N}(p, radii))
+    end
+
+    # Sample masks
+    num_masks = floor(Int, volume * pc_masked / (π*radii^2))
+    return sample(masks, num_masks, replace=false)
 end

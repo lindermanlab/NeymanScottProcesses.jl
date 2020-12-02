@@ -234,9 +234,11 @@ compute_complementary_masks(masks::Vector{<: AbstractMask}, model::NeymanScottMo
 (OPTIONAL) Compute baseline log likelihood (generally, the baseline is a homogeneous
 Poisson process).
 """
-function baseline_log_like(
-    data::Vector{<: AbstractDatapoint}, 
-    masks::Vector{<: AbstractMask}
-)
-    return _homogeneous_baseline_log_like(data, masks)
-end
+baseline_log_like(data::Vector{<: AbstractDatapoint}, masks::Vector{<: AbstractMask}) =
+    _homogeneous_baseline_log_like(data, masks)
+
+"""
+(OPTIONAL) Create a list of randomly generated masks for a given model.
+"""
+create_random_masks(model::NeymanScottModel, mask_lengths::Real, percent_masked::Real) =
+    notimplemented()
