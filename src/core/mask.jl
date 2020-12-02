@@ -19,11 +19,11 @@ Return two arrays `masked_data, unmasked_data` containing the masked and unmaske
 datapoints, respectively.
 """
 function split_data_by_mask(
-    data::Vector{<: AbstractDatapoint},
+    data::Vector{D},
     masks::Vector{<: AbstractMask}
-)
-    masked_data = []
-    unmasked_data = []
+) where {D <: AbstractDatapoint}
+    masked_data = D[]
+    unmasked_data = D[]
 
     for x in data
         if x in masks
@@ -83,6 +83,19 @@ function _homogeneous_baseline_log_like(
 )
     return length(data) / sum(volume.(masks))
 end
+
+"""
+Integrate the intensity of an event in the masked region.
+"""
+function _integrated_event_intensity(
+    model::NeymanScottModel, event::AbstractEvent, mask::AbstractMask;
+    num_samples = 1000
+)
+    num_in_mask = count(i -> (sample_datapoint(event, model) ∈ mask), 1:num_samples)
+    prob_in_mask = sum(num_in_mask) / num_samples
+    return prob_in_mask * amplitude(event)
+end
+
 
 
 

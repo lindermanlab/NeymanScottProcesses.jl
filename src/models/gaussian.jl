@@ -422,26 +422,17 @@ end
 # ===
 # MASKING
 # ===
+
 Base.in(x::RealObservation, mask::CircleMask) = 
     (norm(x.position .- mask.center) < mask.radius)
 
-Base.in(x::Point, comp_mask::GaussianComplementMask) = !(x in comp_mask.masks)
-
 volume(mask::CircleMask{N}) where {N} = π^(N/2) * mask.radius^N / gamma(N/2 + 1)
 
-function volume(complement_mask::CircleComplementMask; num_samples=1000)
-    bounds = complement_mask.bounds
-    N = length(bounds)
-
-    num_in_complement_mask = 0
-    for i in 1:num_samples
-        x = RealObservation{N}(rand(N) .* bounds)
-        if x in complement_mask
-            num_in_complement_mask += 1
-        end
-    end
-
-    return prod(bounds) * (num_in_complement_mask / num_samples)
+function compute_complementary_masks(
+    masks::Vector{CircleMask{N}}, 
+    model::GaussianNeymanScottModel
+) where {N}
+    return CircleComplementMask{N}[CircleComplementMask{N}(masks, model.bounds)]
 end
 
 function create_random_mask(model::GaussianNeymanScottModel, radii::Real, pc_masked::Real)
@@ -453,14 +444,26 @@ function create_random_mask(model::GaussianNeymanScottModel, radii::Real, pc_mas
 
     # Fill box with disjoint masks
     masks = CircleMask{N}[]
-    points = Iterators.product([radii:radii:(M-radii) for M in bounds]...)
+    points = Iterators.product([radii:(2*radii):(M-radii) for M in bounds]...)
 
-    for _p in points
-        p = @SVector _p
-        push!(masks, CircleMask{N}(p, radii))
+    for p in points
+        push!(masks, CircleMask{N}(SVector(p), radii))
     end
 
     # Sample masks
     num_masks = floor(Int, volume * pc_masked / (π*radii^2))
     return sample(masks, num_masks, replace=false)
+end
+
+Base.in(x::RealObservation, comp_mask::CircleComplementMask) = !(x in comp_mask.masks)
+
+function volume(complement_mask::CircleComplementMask{N}; num_samples=1000) where {N}
+    bounds = complement_mask.bounds
+    
+    num_in_complement_mask = count(
+        i -> (RealObservation{N}(rand(N) .* bounds) in complement_mask),
+        1:num_samples
+    )
+
+    return prod(bounds) * (num_in_complement_mask / num_samples)
 end

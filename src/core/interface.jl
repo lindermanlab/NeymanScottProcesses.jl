@@ -211,6 +211,14 @@ Compute the volume occupied by the mask.
 """
 volume(mask::AbstractMask) = notimplemented()
 
+
+"""
+Computes the mask (or array of masks) `inv_masks` such that `{masks, inv_masks}` partition
+the model.
+"""
+compute_complementary_masks(masks::Vector{<: AbstractMask}, model::NeymanScottModel) =
+    notimplemented()
+
 """
 The integrated background intensity in the masked off region. If the background intensity
 is uniform, there is no need to override this method.
@@ -219,15 +227,11 @@ integrated_bkgd_intensity(model::NeymanScottModel, mask::AbstractMask) =
     bkgd_rate(model.globals) * volume(mask)
 
 """
-The integrated event intensity in the masked off region. 
+(OPTIONAL) The integrated event intensity in the masked off region. If left unimplemented, 
+this will approximate the event intensity using random samples.
 """
 integrated_event_intensity(model::NeymanScottModel, event::AbstractEvent,  mask::AbstractMask) = 
-    notimplemented()
-
-"""
-"""
-compute_complementary_masks(masks::Vector{<: AbstractMask}, model::NeymanScottModel) =
-    notimplemented()
+    _integrated_event_intensity(model, event, mask)
 
 
 """
@@ -238,7 +242,10 @@ baseline_log_like(data::Vector{<: AbstractDatapoint}, masks::Vector{<: AbstractM
     _homogeneous_baseline_log_like(data, masks)
 
 """
-(OPTIONAL) Create a list of randomly generated masks for a given model.
+    create_random_mask(model::NeymanScottModel, R::Real, pc::Real)
+
+(OPTIONAL) Create a list of randomly generated masks with length `R`, covering `pc` percent 
+of the volume of `model`.
 """
-create_random_masks(model::NeymanScottModel, mask_lengths::Real, percent_masked::Real) =
+create_random_mask(model::NeymanScottModel, mask_lengths::Real, percent_masked::Real) =
     notimplemented()

@@ -95,20 +95,25 @@ end
 # SAMPLING
 # ===
 
+sample_datapoint(model::NeymanScottModel) = sample_datapoint(model.globals, model)
+
+sample_datapoint(event::AbstractEvent, model::NeymanScottModel) = 
+    sample_datapoint(event, model.globals, model)
+
 """
 Sample a set of datapoints from the background process.
 """
 function sample_background(globals::AbstractGlobals, model::NeymanScottModel)
     num_samples = rand(Poisson(bkgd_rate(globals) * volume(model)))
-    return [sample_datapoint(globals, model) for _ in 1:num_samples]
+    return [sample_datapoint(model) for _ in 1:num_samples]
 end
 
 """
 Sample a set of datapoints from an event.
 """
-function sample(event::SeqEvent, globals::AbstractGlobals, model::PPSeq)     
+function sample(event::AbstractEvent, globals::AbstractGlobals, model::NeymanScottModel)     
     num_samples = rand(Poisson(event.sampled_amplitude))
-    return [sample_datapoint(e, globals, model) for _ in 1:num_samples]
+    return [sample_datapoint(event, model) for _ in 1:num_samples]
 end
 
 """

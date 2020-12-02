@@ -6,16 +6,16 @@ struct MaskedSampler{M <: AbstractMask} <: AbstractSampler
     masked_data::Union{Vector{<: AbstractDatapoint}, Nothing}
 end
 
-valid_save_keys(S::MaskedSampler) = (:train_log_p, :test_log_p, valid_save_keys(subsampler)...)
+valid_save_keys(S::MaskedSampler) = (:train_log_p, :test_log_p, valid_save_keys(S.subsampler)...)
 
-MaskedSampler(subsampler, num_samples, masks; verbose=true, masked_data=nothing) =
+MaskedSampler(subsampler, masks; verbose=true, num_samples=10, masked_data=nothing) =
     MaskedSampler(verbose, num_samples, subsampler, masks, masked_data)
 
 function Base.getproperty(obj::MaskedSampler, sym::Symbol)
     if sym === :save_interval
         return 1
     elseif sym === :save_keys
-        return (:train_log_p, :test_log_p, subsampler.save_keys...)
+        return (:train_log_p, :test_log_p, obj.subsampler.save_keys...)
     else
         return getfield(obj, sym)
     end
@@ -58,20 +58,14 @@ function (S::MaskedSampler)(
         _assgn = vcat(unmasked_assignments, sampled_assignments)
 
         # Run sampler
-        new_results = subsampler(model, _data, _assgn)
-
-        # Update assignments
+        new_results = subsampler(model, _data; initial_assignments=_assgn)
         unmasked_assignments .= view(last(new_results.assignments), 1:length(unmasked_data))
 
         # Update results
-        append_results!(results, new_results, subsampler)
+        update_results!(results, model, unmasked_assignments, unmasked_data, S)
         push!(results.train_log_p, normalized_log_like(model, unmasked_data, inv_masks, train_baseline))
         push!(results.test_log_p, normalized_log_like(model, masked_data, masks, test_baseline))
-
-        verbose && print(i * samples_per_resample, "-")
     end
-    verbose && println("Done")
-
     # Before returning, remove assignments assigned to imputed spikes.
     recompute_statistics!(model, unmasked_data, unmasked_assignments)
     
