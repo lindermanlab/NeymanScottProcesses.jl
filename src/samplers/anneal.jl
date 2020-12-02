@@ -87,18 +87,11 @@ function get_anneal_function(anneal_fn::Union{Function, Symbol}, priors)
             return priors
         end
 
-    elseif anneal_fn in propertynames(priors)
-        f = function (priors::AbstractPriors, T)
-            val = T * getproperty(priors, anneal_fn)
-            setproperty!(priors, anneal_fn, val)
-            return priors
-        end
-    
     else
         error(
             "Invalid annealing function."
-            * "Either pass a function f(priors, temp) or a `:symbol` representing a"
-            * "property in the priors."
+            * "Either pass a function f(priors, temp) or one of :event_amplitude_var"
+            * "and :background_amplitude_mean"
         )
     end
 
