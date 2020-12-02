@@ -6,6 +6,8 @@ using Random: seed!
 seed!(1234)
 
 
+
+
 # ===
 # PARAMETERS
 # ===
@@ -19,6 +21,8 @@ A0 = specify_gamma(20.0, 3.0)  # Background amplitude
 
 Ψ = 1e-3 * I(dim)  # Covariance scale
 ν = 5.0  # Covariance degrees of freedom
+
+
 
 
 # ===
@@ -36,15 +40,21 @@ p1 = plot(data, assignments, xlim=(0, 2), ylim=(0, 2), title="")
 display(p1)
 
 
+
+
 # ===
 # INFERENCE
 # ===
 
+# Create model for inference
 priors = deepcopy(gen_priors)
-priors.event_amplitude = specify_gamma(20.0, (20.0)^2)
-
 model = GaussianNeymanScottModel(bounds, priors)
-sampler = GibbsSampler(num_samples=100, save_interval=5)
+
+# Construct sampler
+subsampler = GibbsSampler(num_samples=100, save_interval=1)
+sampler = Annealer(subsampler, 200.0, :event_amplitude_var)
+
+# Run sampler
 results = sampler(model, data)
 
 # Visualize results

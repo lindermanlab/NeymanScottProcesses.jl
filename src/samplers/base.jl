@@ -33,7 +33,9 @@ _dictkeys(d::Dict) = (collect(keys(d))...,)
 _dictvalues(d::Dict) = (collect(values(d))...,)
 _namedtuple(d::Dict) = NamedTuple{_dictkeys(d)}(_dictvalues(d))
 
-"""Initialize sampler results."""
+"""
+Initialize sampler results.
+"""
 function initialize_results(model, assignments, S::AbstractSampler)
     save_interval, save_keys, num_samples = S.save_interval, S.save_keys, S.num_samples
 
@@ -51,7 +53,9 @@ function initialize_results(model, assignments, S::AbstractSampler)
     return _namedtuple(results)
 end
 
-"""Update sampler results."""
+"""
+Update sampler results.
+"""
 function update_results!(results, model, assignments, data, S::AbstractSampler)
     save_keys = S.save_keys
 
@@ -76,4 +80,41 @@ function update_results!(results, model, assignments, data, S::AbstractSampler)
     end
 
     return results
+end
+
+"""
+Append results from a subsampler to its parent's results.
+"""
+function append_results!(results, new_results, S::AbstractSampler)
+    save_keys = S.save_keys
+
+    if save_keys == :all
+        save_keys = valid_save_keys(S)
+    end
+
+    for key in save_keys
+        append!(results[key], new_results[key])
+    end
+
+    return results
+end
+
+
+
+
+# ===
+# INITIALIZATION
+# ===
+
+"""
+Initialize assignments. If `:background` was passed, initialize all assignments to the
+background process (label `-1`). Otherwise, make a copy of the passed initial assignments.
+"""
+function initialize_assignments(data, initial_assignments)
+    if initial_assignments === :background
+        initial_assignments = fill(-1, length(data))
+    end
+
+    # Initialize spike assignments.
+    return deepcopy(initial_assignments)
 end

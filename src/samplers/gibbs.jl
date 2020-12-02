@@ -15,12 +15,8 @@ function (S::GibbsSampler)(
 )
     verbose, save_interval, num_samples = S.verbose, S.save_interval, S.num_samples
 
-    if initial_assignments === :background
-        initial_assignments = fill(-1, length(data))
-    end
-
     # Initialize spike assignments.
-    assignments = deepcopy(initial_assignments)
+    assignments = initialize_assignments(data, initial_assignments)
     recompute_statistics!(model, data, assignments)
 
     # Initialize the globals using a custom function and reset model probabilities
