@@ -34,10 +34,10 @@ function (S::MaskedSampler)(
 
     # Sanity check.
     @assert length(unmasked_data) === length(initial_assignments)
-    all_data_in_masks(unmasked_data, inv_masks)
-    all_data_in_masks(masked_data, masks)
-    all_data_not_in_masks(unmasked_data, masks)
-    all_data_not_in_masks(masked_data, inv_masks)
+    @assert all_data_in_masks(unmasked_data, inv_masks)
+    @assert all_data_in_masks(masked_data, masks)
+    @assert all_data_not_in_masks(unmasked_data, masks)
+    @assert all_data_not_in_masks(masked_data, inv_masks)
 
     # Compute relative masked volume and baselines
     pc_masked = 1 - masked_proportion(model, inv_masks)
@@ -80,4 +80,3 @@ all_data_not_in_masks(data, masks) = (data === nothing) || all([x ∉ masks for 
 
 normalized_log_like(model, data, masks, baseline) =
     (data == nothing) ? 0.0 : log_like(model, data, masks) - baseline
-
