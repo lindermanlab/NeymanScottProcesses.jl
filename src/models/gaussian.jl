@@ -268,7 +268,7 @@ log_bkgd_intensity(m::GaussianNeymanScottModel, x::RealObservation) =
     log(bkgd_rate(globals(m)))
 
 log_event_intensity(m::GaussianNeymanScottModel, e::GaussianCluster, x::RealObservation) =
-    log(_multinormpdf(position(e), covariance(e), position(x)))
+    log(_multinormpdf(position(e), covariance(e), position(x))) + log(amplitude(e))
 
 log_prior(model::GaussianNeymanScottModel) =
     logpdf(bkgd_amplitude(priors(model)), bkgd_rate(globals(model)))

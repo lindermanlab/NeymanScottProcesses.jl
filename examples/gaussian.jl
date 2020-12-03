@@ -67,6 +67,8 @@ sampler = Annealer(masked_sampler, 200.0, :event_amplitude_var; num_samples=3)
 results = sampler(model, unmasked_data)
 sampled_data, sampled_assignments = sample_masked_data(model, masks)
 
+new_results = base_sampler(model, unmasked_data; initial_assignments=last(results.assignments))
+
 # Visualize results
 p2 = plot(
     unmasked_data, last(results.assignments);

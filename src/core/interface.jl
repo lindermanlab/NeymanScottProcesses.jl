@@ -216,7 +216,7 @@ volume(mask::AbstractMask) = notimplemented()
 Computes the mask (or array of masks) `inv_masks` such that `{masks, inv_masks}` partition
 the model.
 """
-compute_complementary_masks(masks::Vector{<: AbstractMask}, model::NeymanScottModel) =
+complement_masks(masks::Vector{<: AbstractMask}, model::NeymanScottModel) =
     notimplemented()
 
 """

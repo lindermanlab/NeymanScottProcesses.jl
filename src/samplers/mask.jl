@@ -30,7 +30,7 @@ function (S::MaskedSampler)(
     subsampler, masked_data, masks = S.subsampler, S.masked_data, S.masks
 
     # Compute inverse masks
-    inv_masks = compute_complementary_masks(masks, model)
+    inv_masks = complement_masks(masks, model)
 
     # Sanity check.
     @assert length(unmasked_data) === length(initial_assignments)
