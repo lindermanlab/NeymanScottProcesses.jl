@@ -111,18 +111,21 @@ end
 A normal-inverse-chi-squared distribution is a convienent
 prior on the mean and variance parameters for a univariate
 Gaussian. It can be seen as a reparameterization of the
-normal inverse gamma distribution.
-If:
+normal inverse gamma distribution. If:
+
     σ² ~ Inv-χ²(ν, s)
     μ | σ² ~ Normal(m, σ² / k)
+
 Then (μ, σ²) follows a normal-inverse-chi-squared distribution
 with parameters (k, m, ν, s)
+
 Parameters
 ----------
 k : Number of psuedo-observations of m. Note that k > 0.
 m : Prior on the mean parameter.
 ν : Number of psuedo-observations of s. Note that ν > 0.
 s2 : Prior on the variance parameter. Note that s2 > 0.
+
 References
 ----------
  - Pgs 42-43, 67-69 of Gelman et al., Bayesian Data Analysis

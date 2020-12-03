@@ -14,9 +14,9 @@ notimplemented() = error("Not yet implemented.")
 # ===
 
 """
-Returns an empty event. May specify arguments if desired.
+Returns an empty cluster. May specify arguments if desired.
 """
-AbstractEvent(args...) = notimplemented()
+AbstractCluster(args...) = notimplemented()
 
 """
 Model constructor.
@@ -24,13 +24,13 @@ Model constructor.
 NeymanScottModel() = notimplemented()
 
 """
-Returns the arguments of used to generate an empty event similar to `event`.
+Returns the arguments of used to generate an empty cluster similar to `cluster`.
 
 This is helpful when, for example, different instances of the model require
 slightly different structures (for example, in a neuroscience dataset
-the number of neurons will determine the size of many arrays in the event).
+the number of neurons will determine the size of many arrays in the cluster).
 """
-constructor_args(event::AbstractEvent) = notimplemented()
+constructor_args(cluster::AbstractCluster) = notimplemented()
 
 
 
@@ -40,18 +40,18 @@ constructor_args(event::AbstractEvent) = notimplemented()
 # ===
 
 """
-Resets the sufficient statistics and sampled values of `event`, as if it
+Resets the sufficient statistics and sampled values of `cluster`, as if it
 were empty.
 """
-reset!(event::AbstractEvent) = notimplemented()
+reset!(cluster::AbstractCluster) = notimplemented()
 
 """
-Removes the point `x` from event `k` in `events(model)`.
+Removes the point `x` from cluster `k` in `clusters(model)`.
 """
 remove_datapoint!(model::NeymanScottModel, x::AbstractDatapoint, k::Int64) = notimplemented()
 
 """
-Adds the point `x` to event `k` in `events(model)`.
+Adds the point `x` to cluster `k` in `clusters(model)`.
 """
 add_datapoint!(model::NeymanScottModel, x::AbstractDatapoint, k::Int64) = notimplemented()
 
@@ -61,17 +61,17 @@ add_datapoint!(model::NeymanScottModel, x::AbstractDatapoint, k::Int64) = notimp
 set_posterior!(model::NeymanScottModel, k::Int) = nothing
 
 """
-(OPTIONAL) Returns `true` if `x` is so far away from `event` that, with
-high certainty, `event` is not the parent of `x`.
+(OPTIONAL) Returns `true` if `x` is so far away from `cluster` that, with
+high certainty, `cluster` is not the parent of `x`.
 """
-too_far(x::AbstractDatapoint, event::AbstractEvent, model::NeymanScottModel) =
-    (norm(position(event) .- position(x)) > max_event_radius(model))
+too_far(x::AbstractDatapoint, cluster::AbstractCluster, model::NeymanScottModel) =
+    (norm(position(cluster) .- position(x)) > max_cluster_radius(model))
 
 """
-(OPTIONAL) Summarize events and return a list of simpler structs 
+(OPTIONAL) Summarize clusters and return a list of simpler structs 
 or named tuples.
 """
-event_list_summary(model::NeymanScottModel) = [e for e in events(model)]
+cluster_list_summary(model::NeymanScottModel) = [e for e in clusters(model)]
 
 
 
@@ -86,13 +86,13 @@ The background intensity of `x`.
 log_bkgd_intensity(model::NeymanScottModel, x::AbstractDatapoint) = notimplemented()
 
 """
-The intensity of `x` under event `e`.
+The intensity of `x` under cluster `c`.
 """
-log_event_intensity(model::NeymanScottModel, e::AbstractEvent, x::AbstractDatapoint) = 
+log_cluster_intensity(model::NeymanScottModel, c::AbstractCluster, x::AbstractDatapoint) = 
     notimplemented()
 
 """
-Log likelihood of the latent events given the the global variables.
+Log likelihood of the latent clusters given the the global variables.
 
 log p({z₁, ..., zₖ} | θ)
 """
@@ -117,11 +117,11 @@ Log posterior predictive probability of `x` given `e`.
 
 log p({x} ∪ {x₁, ...,  xₖ} | {x₁, ...,  xₖ}) 
 """
-log_posterior_predictive(e::AbstractEvent, x::AbstractDatapoint, m::NeymanScottModel) = 
+log_posterior_predictive(e::AbstractCluster, x::AbstractDatapoint, m::NeymanScottModel) = 
     notimplemented()
 
 """
-Log posterior predictive probability of `x` given an empty event `e` = {}.
+Log posterior predictive probability of `x` given an empty cluster `e` = {}.
 
 log p({x} | {}) 
 """
@@ -139,14 +139,14 @@ Samples an instance of the global variables from the priors.
 """
 sample(priors::AbstractPriors) = notimplemented()
 
-"""Sample a single latent event from the global variables."""
-sample_event(globals::AbstractGlobals, model::NeymanScottModel) = notimplemented()
+"""Sample a single latent cluster from the global variables."""
+sample_cluster(globals::AbstractGlobals, model::NeymanScottModel) = notimplemented()
 
 """Sample a datapoint from the background process."""
 sample_datapoint(globals::AbstractGlobals, model::NeymanScottModel) = notimplemented()
 
-"""Samples a datapoint from event 'e'."""
-sample_datapoint(e::AbstractEvent, G::AbstractGlobals, M::NeymanScottModel) = notimplemented()
+"""Samples a datapoint from cluster 'c'."""
+sample_datapoint(c::AbstractCluster, G::AbstractGlobals, M::NeymanScottModel) = notimplemented()
 
 
 
@@ -156,12 +156,12 @@ sample_datapoint(e::AbstractEvent, G::AbstractGlobals, M::NeymanScottModel) = no
 # ===
 
 """
-Sample a latent event given its sufficient statistics.
+Sample a latent cluster given its sufficient statistics.
 """
-gibbs_sample_event!(e::AbstractEvent, m::NeymanScottModel) = notimplemented()
+gibbs_sample_cluster!(e::AbstractCluster, m::NeymanScottModel) = notimplemented()
 
 """
-Sample the global variables given the data and the current sampled latent events.
+Sample the global variables given the data and the current sampled latent clusters.
 """
 function gibbs_sample_globals!(
     m::NeymanScottModel, 
@@ -227,11 +227,11 @@ integrated_bkgd_intensity(model::NeymanScottModel, mask::AbstractMask) =
     bkgd_rate(model.globals) * volume(mask)
 
 """
-(OPTIONAL) The integrated event intensity in the masked off region. If left unimplemented, 
-this will approximate the event intensity using random samples.
+(OPTIONAL) The integrated cluster intensity in the masked off region. If left unimplemented, 
+this will approximate the cluster intensity using random samples.
 """
-integrated_event_intensity(model::NeymanScottModel, event::AbstractEvent,  mask::AbstractMask) = 
-    _integrated_event_intensity(model, event, mask)
+integrated_cluster_intensity(model::NeymanScottModel, cluster::AbstractCluster,  mask::AbstractMask) = 
+    _integrated_cluster_intensity(model, cluster, mask)
 
 
 """

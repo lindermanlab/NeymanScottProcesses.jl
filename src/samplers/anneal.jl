@@ -71,11 +71,11 @@ function get_anneal_function(anneal_fn::Union{Function, Symbol}, priors)
     if typeof(anneal_fn) <: Function
         f = anneal_fn
 
-    elseif anneal_fn === :event_amplitude_var
+    elseif anneal_fn === :cluster_amplitude_var
         f = function (priors::AbstractPriors, T)
-            new_mean = mean(priors.event_amplitude)
-            new_var = T * var(priors.event_amplitude)
-            priors.event_amplitude = specify_gamma(new_mean, new_var)
+            new_mean = mean(priors.cluster_amplitude)
+            new_var = T * var(priors.cluster_amplitude)
+            priors.cluster_amplitude = specify_gamma(new_mean, new_var)
             return priors
         end
 
@@ -90,7 +90,7 @@ function get_anneal_function(anneal_fn::Union{Function, Symbol}, priors)
     else
         error(
             "Invalid annealing function."
-            * "Either pass a function f(priors, temp) or one of :event_amplitude_var"
+            * "Either pass a function f(priors, temp) or one of :cluster_amplitude_var "
             * "and :background_amplitude_mean"
         )
     end

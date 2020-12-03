@@ -2,14 +2,14 @@
 Neyman-Scott Process Model.
 
 bounds :
-    All datapoints and events occur in the N-dimensional cube 
+    All datapoints and clusters occur in the N-dimensional cube 
         
         (0, bounds[1]) × ... × (0, bounds[N])
 
-max_event_radius :
-    Maximum radius of an event (used to speed up parent assignment step 
+max_cluster_radius :
+    Maximum radius of a cluster (used to speed up parent assignment step 
     of collapsed Gibbs sampling-- we don't compute statistics for 
-    events futher away than this threshold away from the datapoint.)
+    clusters futher away than this threshold away from the datapoint.)
 
 priors :
     Prior distributions.
@@ -17,11 +17,11 @@ priors :
 globals :
     Global variables.
 
-events :
-    List of Event structs. See `./eventlist.jl` for functionality.
+clusters :
+    List of Cluster structs. See `./cluster_list.jl` for functionality.
 
 _K_buffer : 
-    Resized vector, holding probabilities over the number of latent events. 
+    Resized vector, holding probabilities over the number of clusters. 
 
 buffers :
     Other buffers, which may vary with the type of Neyman-Scott model.
@@ -36,15 +36,15 @@ globals(model::NeymanScottModel) = model.globals
 
 get_globals(model::NeymanScottModel) = globals(model)
 
-events(model::NeymanScottModel) = model.events
+clusters(model::NeymanScottModel) = model.clusters
 
-labels(model::NeymanScottModel) = labels(events(model))
+labels(model::NeymanScottModel) = labels(clusters(model))
 
 bounds(model::NeymanScottModel) = model.bounds
 
-max_event_radius(model::NeymanScottModel) = model.max_event_radius
+max_cluster_radius(model::NeymanScottModel) = model.max_cluster_radius
 
-num_events(model::NeymanScottModel) = length(events(model))
+num_clusters(model::NeymanScottModel) = length(clusters(model))
 
 volume(model::NeymanScottModel) = prod(bounds(model))
 
@@ -52,12 +52,12 @@ first_bound(model::NeymanScottModel{N, D, E, P, G}) where {N, D, E, P, G} =
     (N > 1) ? bounds(model)[1] : bounds(model)
 
 """
-Create a singleton latent event e = {s} containing datapoint `s` and return new 
+Create a singleton cluster containing datapoint `x` and return new 
 assignment index `k`.
 """
-function add_event!(model::NeymanScottModel, s::AbstractDatapoint)
-    k = add_event!(events(model))  # Mark event k as non-empty.
-    add_datapoint!(model, s, k)  # Add spike s to event k.
+function add_cluster!(model::NeymanScottModel, x::AbstractDatapoint)
+    k = add_cluster!(clusters(model))
+    add_datapoint!(model, x, k)
     return k
 end
 
@@ -72,17 +72,16 @@ function log_like(model::NeymanScottModel, data::Vector{<: AbstractDatapoint})
     for x in data
         g = log_bkgd_intensity(model, x)
 
-        for event in events(model)
-            # TODO Alex, should there be a log(amplitude(event)) here
-            g = logaddexp(g, log_event_intensity(model, event, x))
+        for cluster in clusters(model)
+            g = logaddexp(g, log_cluster_intensity(model, cluster, x))
         end
 
         ll += g
     end 
     
     ll -= bkgd_rate(model.globals) * volume(model)
-    for event in events(model)
-        ll -= amplitude(event)
+    for cluster in clusters(model)
+        ll -= amplitude(cluster)
     end
     
     return ll
@@ -97,8 +96,8 @@ end
 
 sample_datapoint(model::NeymanScottModel) = sample_datapoint(model.globals, model)
 
-sample_datapoint(event::AbstractEvent, model::NeymanScottModel) = 
-    sample_datapoint(event, model.globals, model)
+sample_datapoint(cluster::AbstractCluster, model::NeymanScottModel) = 
+    sample_datapoint(cluster, model.globals, model)
 
 """
 Sample a set of datapoints from the background process.
@@ -109,11 +108,11 @@ function sample_background(globals::AbstractGlobals, model::NeymanScottModel)
 end
 
 """
-Sample a set of datapoints from an event.
+Sample a set of datapoints from an cluster.
 """
-function sample(event::AbstractEvent, globals::AbstractGlobals, model::NeymanScottModel)     
-    num_samples = rand(Poisson(event.sampled_amplitude))
-    return [sample_datapoint(event, model) for _ in 1:num_samples]
+function sample(cluster::AbstractCluster, globals::AbstractGlobals, model::NeymanScottModel)     
+    num_samples = rand(Poisson(cluster.sampled_amplitude))
+    return [sample_datapoint(cluster, model) for _ in 1:num_samples]
 end
 
 """
@@ -129,26 +128,26 @@ function sample(
     # Optionally resample globals
     globals = resample_globals ? sample(priors) : deepcopy(get_globals(model))
 
-    # Optionally resample events
+    # Sample clusters
     if resample_latents 
-        K = rand(Poisson(event_rate(priors) * volume(model)))
-        events = E[sample_event(globals, model) for k in 1:K]
+        K = rand(Poisson(cluster_rate(priors) * volume(model)))
+        clusters = E[sample_cluster(globals, model) for k in 1:K]
     else
-        events = event_list_summary(model)
+        clusters = cluster_list_summary(model)
     end
 
     # Sample background datapoints
-    spikes = sample_background(globals, model)
-    assignments = [-1 for _ in 1:length(spikes)]
+    datapoints = sample_background(globals, model)
+    assignments = [-1 for _ in 1:length(datapoints)]
 
-    # Sample event-evoked datapoints
-    for (ω, e) in enumerate(events)
-        event_spikes = sample(e, globals, model)
-        append!(spikes, event_spikes)
-        append!(assignments, [ω for _ in 1:length(event_spikes)])
+    # Sample cluster-evoked datapoints
+    for (ω, e) in enumerate(clusters)
+        S = rand(Poisson(amplitude(e)))
+        append!(datapoints, D[sample_datapoint(e, globals, model) for _ in 1:S])
+        append!(assignments, Int64[ω for _ in 1:S])
     end
 
-    return spikes, assignments, events
+    return datapoints, assignments, clusters
 end
 
 
@@ -164,12 +163,12 @@ function _reset_model_probs!(model::NeymanScottModel)
     P = priors(model)
     G = globals(model)
 
-    Ak = event_amplitude(P)
+    Ak = cluster_amplitude(P)
     α, β = Ak.α, Ak.β
 
     model.new_cluster_log_prob = (
         log(α)
-        + log(event_rate(P))
+        + log(cluster_rate(P))
         + log(volume(model))
         + α * (log(β) - log(1 + β))
     )

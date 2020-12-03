@@ -67,7 +67,7 @@ include("distributions.jl")
 include("core/abstract.jl")  # Abstract types and basic functionality
 include("core/nsp.jl")  # Neyman-Scott Model
 include("core/interface.jl")  # Interface that models must implement
-include("core/eventlist.jl")  # Managing (non-parametric) events
+include("core/cluster_list.jl")
 include("core/mask.jl")
 
 # Samplers
@@ -91,7 +91,7 @@ include("plots.jl")
 # export split_merge_sample!, annealed_masked_gibbs!
 # export DistributedNeymanScottModel, make_distributed
 
-# export Spike, EventSummaryInfo, SeqHypers, SeqGlobals, PPSeq
-# export Cable, CablesEventSummary, CablesPriors, CablesGlobals, CablesModel
+# export Spike, SeqHypers, SeqGlobals, PPSeq
+# export Cable, CablesPriors, CablesGlobals, CablesModel
 
 end

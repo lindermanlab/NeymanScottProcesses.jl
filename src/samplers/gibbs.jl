@@ -8,7 +8,7 @@ end
 function GibbsSampler(
     ; verbose=true, 
     save_interval=1, 
-    save_keys=(:log_p, :assignments, :events, :globals), 
+    save_keys=(:log_p, :assignments, :clusters, :globals), 
     num_samples=100
 )
     return GibbsSampler(verbose, save_interval, save_keys, num_samples)
@@ -19,39 +19,52 @@ function (S::GibbsSampler)(
     data::Vector{<: AbstractDatapoint};
     initial_assignments::Union{Symbol, Vector{Int64}}=:background
 )
+    
+    # Grab sampling options.
     verbose, save_interval, num_samples = S.verbose, S.save_interval, S.num_samples
 
-    # Initialize spike assignments.
+    # Initialize cluster assignments.
     assignments = initialize_assignments(data, initial_assignments)
-    recompute_statistics!(model, data, assignments)
+    recompute_cluster_statistics!(model, clusters(model), data, assignments)
 
     # Initialize the globals using a custom function and reset model probabilities
     gibbs_initialize_globals!(model, data, assignments)
     _reset_model_probs!(model)
 
     results = initialize_results(model, assignments, S)
-    spike_order = collect(1:length(data))
+    data_order = collect(1:length(data))
 
     for s in 1:num_samples
 
-        shuffle!(spike_order)  # Update spike assignments in random order.
-        for i in spike_order
+        # Shuffle order for sampling the assignments.
+        shuffle!(data_order)
 
+        # Update cluster assignments
+        for i in data_order
+
+            # Remove i-th datapoint from its current cluster.
             if assignments[i] != -1
                 remove_datapoint!(model, data[i], assignments[i])
             else
                 remove_bkgd_datapoint!(model, data[i])
             end
 
-            assignments[i] = gibbs_add_datapoint!(model, data[i])
+            # Sample a new assignment for i-th datapoint.
+            assignments[i] = gibbs_sample_assignment!(model, data[i])
+
         end
 
-        # Update latent events and global variables
-        gibbs_sample_latents!(model)
-        gibbs_sample_globals!(model, data, assignments)
+        # Update cluster parameters.
+        for cluster in clusters(model)
+            gibbs_sample_cluster_params!(cluster, model)
+        end
 
-        _reset_model_probs!(model)  # Recompute background and new cluster probabilities
-        recompute_statistics!(model, data, assignments)  # Recompute event statistics
+        # Update global variable.
+        gibbs_sample_globals!(model, data, assignments)
+        _reset_model_probs!(model)  # TODO -- I think this should be done inside gibbs_sample_globals!
+
+        # Recompute background and new cluster probabilities
+        recompute_cluster_statistics!(model, clusters(model), data, assignments)
 
         # Store results
         if (s % save_interval) == 0
@@ -59,58 +72,51 @@ function (S::GibbsSampler)(
             update_results!(results, model, assignments, data, S)
             verbose && print(s, "-")  # Display progress
         end
+
     end
-    verbose && println("Done") # Finish progress bar.
+
+    verbose && println("Done")
 
     return results
 end
 
 """
-Adds spikes `s` to an existing sequence event, to a new sequence event,
-or to the background process.
-For each sequence event k = 1 ... K, we compute
-    prob[k] = p(x_i | z_i = k, x_{neq i}) * (N_k + alpha)
-The probability of forming a new cluster is
-    prob[K + 1] propto p(x_i | z_i = K + 1) * alpha * (V(K + 1) / V(K))
-where p(x_i | z_i = K + 1) is the marginal probability of a singleton cluster.
-See section 6 of Miller & Harrison (2018).
-The probability of the background is
-    prob[K + 2] propto p(x_i | bkgd) * lambda0 * (1 + beta)
-where lambda0 = m.bkgd_rate and (alpha, beta) are the shape and 
-rate parameters of the gamma prior on sequence event amplitudes.
+Samples cluster assignment variable for datapoint `x` according to its
+conditional distribution, and updates the cluster statistics in `model`
+accordingly. Returns integer corresponding the new cluster assignment.
 """
-function gibbs_add_datapoint!(model::NeymanScottModel, x::AbstractDatapoint)
+function gibbs_sample_assignment!(model::NeymanScottModel, x::AbstractDatapoint)
 
     # Create log-probability vector to sample assignments.
     #
-    #  - We need to sample K + 2 possibilities. There are K existing clusters
-    #    we could assign to. We could also form a new cluster (index K + 1),
-    #    or assign the spike to the background (index K + 2).
+    #  - We need to sample K + 2 possible assignments. We could assign `x` to
+    #    one of the K existing clusters. We could also form a new cluster
+    #    (index K + 1), or assign `x` to the background (index K + 2).
 
-    # Shape and rate parameters of gamma prior on latent event amplitude.
-    α = event_amplitude(model.priors).α
-    β = event_amplitude(model.priors).β
+    # Shape and rate parameters of gamma prior on latent cluster amplitude.
+    α = cluster_amplitude(model.priors).α
+    β = cluster_amplitude(model.priors).β
 
-    K = num_events(model)
+    K = num_clusters(model)
     
     # Grab vector without allocating new memory.
     log_probs = resize!(model.K_buffer, K + 2)
 
-    # Iterate over model events, indexed by k = {1, 2, ..., K}.
-    for (k, event) in enumerate(events(model))
+    # Iterate over clusters, indexed by k = {1, 2, ..., K}.
+    for (k, cluster) in enumerate(clusters(model))
 
-        # Check if event is too far away to be considered. If sampled_type < 0,
-        # then the event timestamp hasn't been sampled yet, so we can't give
-        # up yet. Be aware that this previously led to a subtle bug, which was
-        # very painful to fix.
-        if too_far(x, event, model) && been_sampled(event)
+        # Check if `cluster` is too far away from `k` to be considered.
+        # When performing this check, we need to make sure that the cluster
+        # parameters have been sampled --- failing to do this check
+        # previously led to a subtle bug, which was very painful to fix.
+        if too_far(x, cluster, model) && been_sampled(cluster)
             @debug "Too far!"
             log_probs[k] = -Inf
 
-        # Compute probability of adding spike to cluster k.
+        # Compute probability of adding x to k-th cluster.
         else
-            Nk = datapoint_count(event)
-            log_probs[k] = log(Nk + α) + log_posterior_predictive(event, x, model)
+            Nk = datapoint_count(cluster)
+            log_probs[k] = log(Nk + α) + log_posterior_predictive(cluster, x, model)
         end
     end
     
@@ -120,34 +126,25 @@ function gibbs_add_datapoint!(model::NeymanScottModel, x::AbstractDatapoint)
     # Background probability
     log_probs[K + 2] = model.bkgd_log_prob + bkgd_log_like(model, x)
 
-    # Sample new assignment for spike x.
+    # Sample new assignment for x.
     z = sample_logprobs!(log_probs)
 
-    # New sample corresponds to background.
+    # Assign datapoint to background.
     if z == (K + 2)
         add_bkgd_datapoint!(model, x)
         return -1
 
-    # New sample corresponds to new sequence event / cluster.
+    # Assign datapoint to a new cluster. Note that the `add_cluster!` 
+    # function returns a newly allocated assignment index.
     elseif z == (K + 1)
-        return add_event!(model, x)  # returns new assignment
+        return add_cluster!(model, x)
 
-    # Otherwise, add datapoint to existing sequence event. Note
-    # that z is an integer in [1:K], while assignment indices
-    # can be larger and non-contiguous.
+    # Assign datapoint to an existing cluster. There are `K` existing
+    # clusters with integer ids held in clusters(model).indices ---
+    # we use z as an index into this list.
     else
-        k = events(model).indices[z]  # look up assignment index.
+        k = clusters(model).indices[z]
         add_datapoint!(model, x, k)
         return k
-    end
-end
-
-
-"""
-Resamples latent event variables.
-"""
-function gibbs_sample_latents!(model::NeymanScottModel)
-    for event in events(model)
-        gibbs_sample_event!(event, model)
     end
 end
