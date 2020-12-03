@@ -45,7 +45,7 @@ where
 
     K = number of clusters
     λ_0 = background rate (`globals.bkgd_rate`)
-    K_0 = number of background spikes
+    K_0 = number of datapoints in the background partition
 
     A_k = event amplitude
     μ_k = event position

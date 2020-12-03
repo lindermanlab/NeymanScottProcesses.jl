@@ -23,7 +23,7 @@ function (S::GibbsSampler)(
     # Grab sampling options.
     verbose, save_interval, num_samples = S.verbose, S.save_interval, S.num_samples
 
-    # Initialize spike assignments.
+    # Initialize cluster assignments.
     assignments = initialize_assignments(data, initial_assignments)
     recompute_cluster_statistics!(model, clusters(model), data, assignments)
 
@@ -89,9 +89,9 @@ function gibbs_sample_assignment!(model::NeymanScottModel, x::AbstractDatapoint)
 
     # Create log-probability vector to sample assignments.
     #
-    #  - We need to sample K + 2 possibilities. There are K existing clusters
-    #    we could assign to. We could also form a new cluster (index K + 1),
-    #    or assign the spike to the background (index K + 2).
+    #  - We need to sample K + 2 possible assignments. We could assign `x` to
+    #    one of the K existing clusters. We could also form a new cluster
+    #    (index K + 1), or assign `x` to the background (index K + 2).
 
     # Shape and rate parameters of gamma prior on latent event amplitude.
     α = cluster_amplitude(model.priors).α
@@ -113,7 +113,7 @@ function gibbs_sample_assignment!(model::NeymanScottModel, x::AbstractDatapoint)
             @debug "Too far!"
             log_probs[k] = -Inf
 
-        # Compute probability of adding spike to cluster k.
+        # Compute probability of adding x to k-th cluster.
         else
             Nk = datapoint_count(cluster)
             log_probs[k] = log(Nk + α) + log_posterior_predictive(cluster, x, model)

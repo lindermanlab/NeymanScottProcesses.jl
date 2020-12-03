@@ -110,6 +110,6 @@ function initialize_assignments(data, initial_assignments)
         initial_assignments = fill(-1, length(data))
     end
 
-    # Initialize spike assignments.
+    # Initialize cluster assignments.
     return deepcopy(initial_assignments)
 end

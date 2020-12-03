@@ -111,7 +111,7 @@ function recompute_cluster_statistics!(
     # Add datapoints back to their previously assigned cluster.
     for (x, k) in zip(datapoints, assignments)
         
-        # Skip background spikes.
+        # Skip datapoints assigned to the background.
         (k < 0) && continue
 
         # Check that event k exists.

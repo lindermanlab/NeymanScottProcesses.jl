@@ -137,17 +137,17 @@ function sample(
     end
 
     # Sample background datapoints
-    spikes = sample_background(globals, model)
-    assignments = [-1 for _ in 1:length(spikes)]
+    datapoints = sample_background(globals, model)
+    assignments = [-1 for _ in 1:length(datapoints)]
 
     # Sample event-evoked datapoints
     for (ω, e) in enumerate(clusters)
         S = rand(Poisson(amplitude(e)))
-        append!(spikes, D[sample_datapoint(e, globals, model) for _ in 1:S])
+        append!(datapoints, D[sample_datapoint(e, globals, model) for _ in 1:S])
         append!(assignments, Int64[ω for _ in 1:S])
     end
 
-    return spikes, assignments, clusters
+    return datapoints, assignments, clusters
 end
 
 
