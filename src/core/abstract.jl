@@ -4,7 +4,7 @@
 
 abstract type AbstractDatapoint{N} end
 
-abstract type AbstractEvent{N} end
+abstract type AbstractCluster{N} end
 
 abstract type AbstractGlobals end
 
@@ -12,16 +12,15 @@ abstract type AbstractPriors end
 
 abstract type AbstractMask end
 
-struct EventList{E <: AbstractEvent}
-    constructor
-    events::Vector{E}
-    indices::Vector{Int64}    # Indices of occupied sequences.
+struct ClusterList{C <: AbstractCluster}
+    clusters::Vector{C}
+    indices::Vector{Int64}
 end
 
 mutable struct NeymanScottModel{
     N,
     D <: AbstractDatapoint{N},
-    E <: AbstractEvent{N},
+    E <: AbstractCluster{N},
     G <: AbstractGlobals,
     P <: AbstractPriors
 }
@@ -30,7 +29,7 @@ mutable struct NeymanScottModel{
 
     priors::P
     globals::G
-    events::EventList{E}
+    clusters::ClusterList{E}
 
     new_cluster_log_prob
     bkgd_log_prob
@@ -60,7 +59,7 @@ end
 
 
 """
-Abstract type for events.
+Abstract type for clusters (i.e. "latent events").
 
 Subtypes `E` must contain the fields:
 
@@ -70,18 +69,18 @@ Subtypes `E` must contain the fields:
 
 or override the behavior of the associated get methods.
 """
-AbstractEvent
+AbstractCluster
 
-datapoint_count(event::AbstractEvent) = event.datapoint_count
+datapoint_count(cluster::AbstractCluster) = cluster.datapoint_count
 
-position(event::AbstractEvent) = event.sampled_position
+position(cluster::AbstractCluster) = cluster.sampled_position
 
-amplitude(event::AbstractEvent) = event.sampled_amplitude
+amplitude(cluster::AbstractCluster) = cluster.sampled_amplitude
 
-been_sampled(e::AbstractEvent) = amplitude(e) > 0
+been_sampled(e::AbstractCluster) = amplitude(e) > 0
 
-function first_coordinate(event::AbstractEvent{N}) where {N}
-    return (N > 1) ? position(event)[1] : position(event)
+function first_coordinate(cluster::AbstractCluster{N}) where {N}
+    return (N > 1) ? position(cluster)[1] : position(cluster)
 end
 
 
@@ -108,16 +107,16 @@ Abstract type for priors.
 
 Subtypes `P` must contain the fields:
 
-    event_rate
-    event_amplitude
+    cluster_rate
+    cluster_amplitude
     bkgd_amplitude
 
 or override the behavior of the associated get methods.
 """
 AbstractPriors
 
-event_rate(priors::AbstractPriors) = priors.event_rate
+cluster_rate(priors::AbstractPriors) = priors.cluster_rate
 
-event_amplitude(priors::AbstractPriors) = priors.event_amplitude
+cluster_amplitude(priors::AbstractPriors) = priors.cluster_amplitude
 
 bkgd_amplitude(priors::AbstractPriors) = priors.bkgd_amplitude

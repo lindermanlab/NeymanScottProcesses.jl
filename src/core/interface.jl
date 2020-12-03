@@ -16,7 +16,7 @@ notimplemented() = error("Not yet implemented.")
 """
 Returns an empty event. May specify arguments if desired.
 """
-AbstractEvent(args...) = notimplemented()
+AbstractCluster(args...) = notimplemented()
 
 """
 Model constructor.
@@ -30,7 +30,7 @@ This is helpful when, for example, different instances of the model require
 slightly different structures (for example, in a neuroscience dataset
 the number of neurons will determine the size of many arrays in the event).
 """
-constructor_args(event::AbstractEvent) = notimplemented()
+constructor_args(event::AbstractCluster) = notimplemented()
 
 
 
@@ -43,7 +43,7 @@ constructor_args(event::AbstractEvent) = notimplemented()
 Resets the sufficient statistics and sampled values of `event`, as if it
 were empty.
 """
-reset!(event::AbstractEvent) = notimplemented()
+reset!(event::AbstractCluster) = notimplemented()
 
 """
 Removes the point `x` from event `k` in `events(model)`.
@@ -64,7 +64,7 @@ set_posterior!(model::NeymanScottModel, k::Int) = nothing
 (OPTIONAL) Returns `true` if `x` is so far away from `event` that, with
 high certainty, `event` is not the parent of `x`.
 """
-too_far(x::AbstractDatapoint, event::AbstractEvent, model::NeymanScottModel) =
+too_far(x::AbstractDatapoint, event::AbstractCluster, model::NeymanScottModel) =
     (norm(position(event) .- position(x)) > max_event_radius(model))
 
 """
@@ -86,9 +86,9 @@ The background intensity of `x`.
 log_bkgd_intensity(model::NeymanScottModel, x::AbstractDatapoint) = notimplemented()
 
 """
-The intensity of `x` under event `e`.
+The intensity of `x` under cluster `c`.
 """
-log_event_intensity(model::NeymanScottModel, e::AbstractEvent, x::AbstractDatapoint) = 
+log_cluster_intensity(model::NeymanScottModel, c::AbstractCluster, x::AbstractDatapoint) = 
     notimplemented()
 
 """
@@ -117,7 +117,7 @@ Log posterior predictive probability of `x` given `e`.
 
 log p({x} ∪ {x₁, ...,  xₖ} | {x₁, ...,  xₖ}) 
 """
-log_posterior_predictive(e::AbstractEvent, x::AbstractDatapoint, m::NeymanScottModel) = 
+log_posterior_predictive(e::AbstractCluster, x::AbstractDatapoint, m::NeymanScottModel) = 
     notimplemented()
 
 """
@@ -146,7 +146,7 @@ sample_event(globals::AbstractGlobals, model::NeymanScottModel) = notimplemented
 sample_datapoint(globals::AbstractGlobals, model::NeymanScottModel) = notimplemented()
 
 """Samples a datapoint from event 'e'."""
-sample_datapoint(e::AbstractEvent, G::AbstractGlobals, M::NeymanScottModel) = notimplemented()
+sample_datapoint(e::AbstractCluster, G::AbstractGlobals, M::NeymanScottModel) = notimplemented()
 
 
 
@@ -158,7 +158,7 @@ sample_datapoint(e::AbstractEvent, G::AbstractGlobals, M::NeymanScottModel) = no
 """
 Sample a latent event given its sufficient statistics.
 """
-gibbs_sample_event!(e::AbstractEvent, m::NeymanScottModel) = notimplemented()
+gibbs_sample_event!(e::AbstractCluster, m::NeymanScottModel) = notimplemented()
 
 """
 Sample the global variables given the data and the current sampled latent events.

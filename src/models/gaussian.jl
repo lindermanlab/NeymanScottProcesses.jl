@@ -36,14 +36,14 @@ Event Datapoints:
 
 where
 
-    λ = event rate (`priors.event_rate`)
-    (α, β) = event amplitude (`priors.event_amplitude`)
+    λ = event rate (`priors.cluster_rate`)
+    (α, β) = event amplitude (`priors.cluster_amplitude`)
     (α_0, β_0) = background amplitude (`priors.bkgd_amplitude`)
     (L_1, L_2) = bounds (`model.bounds`)
     Ψ = scaling of covariance matrix (`priors.covariance_scale`)
     ν = degrees of freedom of covariance matrix (`priors.covariance_df`)
 
-    K = number of events
+    K = number of clusters
     λ_0 = background rate (`globals.bkgd_rate`)
     K_0 = number of background spikes
 
@@ -65,7 +65,7 @@ struct RealObservation{N} <: AbstractDatapoint{N}
     position::SVector{N, Float64}
 end
 
-mutable struct GaussianCluster{N} <: AbstractEvent{N}
+mutable struct GaussianCluster{N} <: AbstractCluster{N}
     datapoint_count::Int
     first_moment::SVector{N, Float64}
     second_moment::SMatrix{N, N, Float64}
@@ -80,11 +80,13 @@ mutable struct GaussianGlobals <: AbstractGlobals
 end
 
 mutable struct GaussianPriors <: AbstractPriors
-    event_rate::Float64
-    
-    event_amplitude::RateGamma
+
+    # TODO -- these three params are common to all observation models.
+    cluster_rate::Float64    
+    cluster_amplitude::RateGamma
     bkgd_amplitude::RateGamma
 
+    # TODO -- Only the params below are specific to the Gaussian case.
     covariance_scale::Matrix
     covariance_df::Float64
 
@@ -165,16 +167,21 @@ function GaussianCluster{N}() where {N}
 end
 
 function GaussianPriors(
-    event_rate,
-    event_amplitude,
+    cluster_rate,
+    cluster_amplitude,
     bkgd_amplitude,
     covariance_scale,
     covariance_df,
 )
     N = size(covariance_scale, 1)
     return GaussianPriors(
-        event_rate, event_amplitude, bkgd_amplitude, covariance_scale, covariance_df,
-        zeros(N), 0.0,
+        cluster_rate,
+        cluster_amplitude,
+        bkgd_amplitude,
+        covariance_scale,
+        covariance_df,
+        zeros(N),
+        0.0,
     )
 end
 
@@ -187,7 +194,7 @@ function GaussianNeymanScottModel(
     @assert N === length(priors.mean_prior)
 
     globals = sample(priors)
-    events = EventList(GaussianCluster{N}, ())
+    clusters = ClusterList(GaussianCluster{N}())
 
     # Package it all together into the model object.
     model = GaussianNeymanScottModel{N}(
@@ -195,7 +202,7 @@ function GaussianNeymanScottModel(
         max_radius,
         priors,
         globals,
-        events,
+        clusters,
         0.0,
         0.0,
         Float64[],
@@ -215,6 +222,7 @@ end
 # ===
 
 function reset!(e::GaussianCluster)
+    # TODO -- perhaps make a better name for this function.
     e.datapoint_count = 0
     e.first_moment = zeros(typeof(e.first_moment))
     e.second_moment = zeros(typeof(e.second_moment))
@@ -226,15 +234,17 @@ function remove_datapoint!(
     k::Int;
     recompute_posterior::Bool=true
 ) 
-    e = events(model)[k]
+    e = clusters(model)[k]
 
-    # If this is the last spike in the event, we can return early.
-    (e.datapoint_count == 1) && (return remove_event!(events(model), k))
+    # If this is the last datapoint, we can return early.
+    (e.datapoint_count == 1) && (return remove_cluster!(clusters(model), k))
 
+    # Otherwise update the sufficient statistics.
     e.datapoint_count -= 1
     e.first_moment -= position(x)
     e.second_moment -= position(x) * position(x)'
 
+    # Recompute posterior based on new sufficient statistics.
     recompute_posterior && set_posterior!(model, k)
 
     return k
@@ -246,7 +256,7 @@ function add_datapoint!(
     k::Int;
     recompute_posterior::Bool=true
 ) 
-    e = events(model)[k]
+    e = clusters(model)[k]
 
     e.datapoint_count += 1
     e.first_moment += position(x)
@@ -267,8 +277,8 @@ end
 log_bkgd_intensity(m::GaussianNeymanScottModel, x::RealObservation) =
     log(bkgd_rate(globals(m)))
 
-log_event_intensity(m::GaussianNeymanScottModel, e::GaussianCluster, x::RealObservation) =
-    log(_multinormpdf(position(e), covariance(e), position(x))) + log(amplitude(e))
+log_cluster_intensity(m::GaussianNeymanScottModel, c::GaussianCluster, x::RealObservation) =
+    log(_multinormpdf(position(c), covariance(c), position(x))) + log(amplitude(c))
 
 log_prior(model::GaussianNeymanScottModel) =
     logpdf(bkgd_amplitude(priors(model)), bkgd_rate(globals(model)))
@@ -282,12 +292,12 @@ function log_p_latents(model::GaussianNeymanScottModel)
     globals = get_globals(model)
 
     # Log prior on position
-    lp = -log(volume(model)) * length(events(model))
+    lp = -log(volume(model)) * length(clusters(model))
 
-    for event in events(model)
+    for event in clusters(model)
 
         # Log prior on event amplitude
-        lp += logpdf(event_amplitude(priors), position(event))
+        lp += logpdf(cluster_amplitude(priors), position(event))
 
         # Log prior on covariance
         lp += logpdf(
@@ -353,7 +363,7 @@ end
 """Sample a single latent event from the global variables."""
 function sample_event(::GaussianGlobals, model::GaussianNeymanScottModel{N}) where {N}
     priors = get_priors(model)
-    A = rand(event_amplitude(priors))
+    A = rand(cluster_amplitude(priors))
     μ = rand(N) .* bounds(model)
     Σ = rand(InverseWishart(priors.covariance_df, priors.covariance_scale))
     return GaussianCluster(SVector{N}(μ), SMatrix{N, N}(Σ), A)
@@ -377,9 +387,13 @@ end
 # GIBBS SAMPLING
 # ===
 
-function gibbs_sample_event!(event::GaussianCluster, model::GaussianNeymanScottModel)
+function gibbs_sample_cluster_params!(
+        event::GaussianCluster,
+        model::GaussianNeymanScottModel
+    )
+
     priors = get_priors(model)
-    A0 = event_amplitude(priors)
+    A0 = cluster_amplitude(priors)
     ν = priors.covariance_df
     Ψ = priors.covariance_scale
 
