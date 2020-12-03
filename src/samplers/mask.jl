@@ -67,7 +67,7 @@ function (S::MaskedSampler)(
         push!(results.test_log_p, normalized_log_like(model, masked_data, masks, test_baseline))
     end
     # Before returning, remove assignments assigned to imputed spikes.
-    recompute_statistics!(model, unmasked_data, unmasked_assignments)
+    recompute_cluster_statistics!(model, clusters(model), unmasked_data, unmasked_assignments)
     
     # TODO Rescale likelihoods?
    

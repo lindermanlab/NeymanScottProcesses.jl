@@ -58,8 +58,8 @@ function log_like(
     # -- Sum of Poisson Process intensity at all datapoints -- #
     for x in data
         ll += log_bkgd_intensity(model, x)
-        for event in events(model)
-            logaddexp(ll, log_event_intensity(model, event, x))
+        for ψ in clusters(model)
+            logaddexp(ll, log_cluster_intensity(model, ψ, x))
         end
     end
 
@@ -67,8 +67,8 @@ function log_like(
     # -- Penalty on integrated intensity function -- #
     for mask in masks        
         ll -= integrated_bkgd_intensity(model, mask)
-        for event in events(model)
-            ll -= integrated_event_intensity(model, event, mask)
+        for ψ in clusters(model)
+            ll -= integrated_cluster_intensity(model, ψ, mask)
         end
     end
 
@@ -88,7 +88,7 @@ end
 """
 Integrate the intensity of an cluster in the masked region.
 """
-function _integrated_event_intensity(
+function _integrated_cluster_intensity(
     model::NeymanScottModel,
     cluster::AbstractCluster,
     mask::AbstractMask;
@@ -145,7 +145,7 @@ function sample_masked_data!(
 
     # Sample cluster-evoked datapoints
     for (k, cluster) in enumerate(clusters(model))
-        z = events(model).indices[k]
+        z = clusters(model).indices[k]
         for x in sample(cluster, globals(model), model)
             if x in masks
                 push!(data, x)

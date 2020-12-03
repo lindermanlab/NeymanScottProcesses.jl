@@ -20,7 +20,7 @@ And the following methods
 """
 abstract type AbstractSampler end
 
-valid_save_keys(::AbstractSampler) = (:log_p, :assignments, :events, :globals)
+valid_save_keys(::AbstractSampler) = (:log_p, :assignments, :clusters, :globals)
 
 
 
@@ -67,7 +67,7 @@ function update_results!(results, model, assignments, data, S::AbstractSampler)
     end
 
     if :latents in save_keys
-        push!(results[:events], deepcopy(event_list_summary(model)))
+        push!(results[:clusters], deepcopy(cluster_list_summary(model)))
     end
 
     if :globals in save_keys
