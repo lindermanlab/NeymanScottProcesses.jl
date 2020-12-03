@@ -7,7 +7,7 @@ bounds :
         (0, bounds[1]) × ... × (0, bounds[N])
 
 max_event_radius :
-    Maximum radius of an event (used to speed up parent assignment step 
+    Maximum radius of a cluster (used to speed up parent assignment step 
     of collapsed Gibbs sampling-- we don't compute statistics for 
     clusters futher away than this threshold away from the datapoint.)
 
@@ -96,8 +96,8 @@ end
 
 sample_datapoint(model::NeymanScottModel) = sample_datapoint(model.globals, model)
 
-sample_datapoint(event::AbstractEvent, model::NeymanScottModel) = 
-    sample_datapoint(event, model.globals, model)
+sample_datapoint(cluster::AbstractCluster, model::NeymanScottModel) = 
+    sample_datapoint(cluster, model.globals, model)
 
 """
 Sample a set of datapoints from the background process.
@@ -108,11 +108,11 @@ function sample_background(globals::AbstractGlobals, model::NeymanScottModel)
 end
 
 """
-Sample a set of datapoints from an event.
+Sample a set of datapoints from an cluster.
 """
-function sample(event::AbstractEvent, globals::AbstractGlobals, model::NeymanScottModel)     
-    num_samples = rand(Poisson(event.sampled_amplitude))
-    return [sample_datapoint(event, model) for _ in 1:num_samples]
+function sample(cluster::AbstractCluster, globals::AbstractGlobals, model::NeymanScottModel)     
+    num_samples = rand(Poisson(cluster.sampled_amplitude))
+    return [sample_datapoint(cluster, model) for _ in 1:num_samples]
 end
 
 """
@@ -140,7 +140,7 @@ function sample(
     datapoints = sample_background(globals, model)
     assignments = [-1 for _ in 1:length(datapoints)]
 
-    # Sample event-evoked datapoints
+    # Sample cluster-evoked datapoints
     for (ω, e) in enumerate(clusters)
         S = rand(Poisson(amplitude(e)))
         append!(datapoints, D[sample_datapoint(e, globals, model) for _ in 1:S])

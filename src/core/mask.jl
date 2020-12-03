@@ -45,7 +45,7 @@ end
 
 """
 Compute log-likelihood of masked `data` under sampled parameters in `model`. Every
-event held in `data` is assumed to be in the union of all `masks`.
+datapoint in `data` is assumed to be in the union of all `masks`.
 """
 function log_like(
     model::NeymanScottModel,
@@ -86,15 +86,17 @@ function _homogeneous_baseline_log_like(
 end
 
 """
-Integrate the intensity of an event in the masked region.
+Integrate the intensity of an cluster in the masked region.
 """
 function _integrated_event_intensity(
-    model::NeymanScottModel, event::AbstractEvent, mask::AbstractMask;
+    model::NeymanScottModel,
+    cluster::AbstractCluster,
+    mask::AbstractMask;
     num_samples = 1000
 )
-    num_in_mask = count(i -> (sample_datapoint(event, model) ∈ mask), 1:num_samples)
+    num_in_mask = count(i -> (sample_datapoint(cluster, model) ∈ mask), 1:num_samples)
     prob_in_mask = sum(num_in_mask) / num_samples
-    return prob_in_mask * amplitude(event)
+    return prob_in_mask * amplitude(cluster)
 end
 
 
@@ -141,10 +143,10 @@ function sample_masked_data!(
         end
     end
 
-    # Sample event data
-    for (k, event) in enumerate(events(model))
+    # Sample cluster-evoked datapoints
+    for (k, cluster) in enumerate(clusters(model))
         z = events(model).indices[k]
-        for x in sample(event, globals(model), model)
+        for x in sample(cluster, globals(model), model)
             if x in masks
                 push!(data, x)
                 push!(assignments, z)

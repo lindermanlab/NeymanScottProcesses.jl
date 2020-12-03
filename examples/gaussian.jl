@@ -61,7 +61,7 @@ model = GaussianNeymanScottModel(bounds, priors)
 # Construct sampler
 base_sampler = GibbsSampler(num_samples=50, save_interval=10)
 masked_sampler = MaskedSampler(base_sampler, masks; masked_data=masked_data, num_samples=3)
-sampler = Annealer(masked_sampler, 200.0, :event_amplitude_var; num_samples=3)
+sampler = Annealer(masked_sampler, 200.0, :cluster_amplitude_var; num_samples=3)
 
 # Run sampler
 results = sampler(model, unmasked_data)

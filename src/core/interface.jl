@@ -227,11 +227,11 @@ integrated_bkgd_intensity(model::NeymanScottModel, mask::AbstractMask) =
     bkgd_rate(model.globals) * volume(mask)
 
 """
-(OPTIONAL) The integrated event intensity in the masked off region. If left unimplemented, 
-this will approximate the event intensity using random samples.
+(OPTIONAL) The integrated cluster intensity in the masked off region. If left unimplemented, 
+this will approximate the cluster intensity using random samples.
 """
-integrated_event_intensity(model::NeymanScottModel, event::AbstractEvent,  mask::AbstractMask) = 
-    _integrated_event_intensity(model, event, mask)
+integrated_cluster_intensity(model::NeymanScottModel, cluster::AbstractCluster,  mask::AbstractMask) = 
+    _integrated_event_intensity(model, cluster, mask)
 
 
 """

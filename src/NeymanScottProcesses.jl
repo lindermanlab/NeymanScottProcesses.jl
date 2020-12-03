@@ -67,12 +67,8 @@ include("distributions.jl")
 include("core/abstract.jl")  # Abstract types and basic functionality
 include("core/nsp.jl")  # Neyman-Scott Model
 include("core/interface.jl")  # Interface that models must implement
-<<<<<<< HEAD
-include("core/eventlist.jl")  # Managing (non-parametric) events
+include("core/cluster_list.jl")
 include("core/mask.jl")
-=======
-include("core/cluster_list.jl")  # Managing (non-parametric) events
->>>>>>> rename latent "events" to "clusters"
 
 # Samplers
 include("samplers/base.jl")

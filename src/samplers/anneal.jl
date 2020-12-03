@@ -90,7 +90,7 @@ function get_anneal_function(anneal_fn::Union{Function, Symbol}, priors)
     else
         error(
             "Invalid annealing function."
-            * "Either pass a function f(priors, temp) or one of :cluster_amplitude_var"
+            * "Either pass a function f(priors, temp) or one of :cluster_amplitude_var "
             * "and :background_amplitude_mean"
         )
     end
