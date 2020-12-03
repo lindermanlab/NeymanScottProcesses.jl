@@ -2,7 +2,7 @@
 Neyman-Scott Process Model.
 
 bounds :
-    All datapoints and cluster clusters occur in the N-dimensional cube 
+    All datapoints and clusters occur in the N-dimensional cube 
         
         (0, bounds[1]) × ... × (0, bounds[N])
 
