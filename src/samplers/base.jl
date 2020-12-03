@@ -39,10 +39,9 @@ Initialize sampler results.
 function initialize_results(model, assignments, S::AbstractSampler)
     save_interval, save_keys, num_samples = S.save_interval, S.save_keys, S.num_samples
 
+    @assert (:assignments in save_keys)
+
     n_saved_samples = Int(round(num_samples / save_interval))
-    if save_keys === :all
-        save_keys = valid_save_keys(S)
-    end
 
     results = Dict{Symbol, Any}()
     for key in save_keys
@@ -58,10 +57,6 @@ Update sampler results.
 """
 function update_results!(results, model, assignments, data, S::AbstractSampler)
     save_keys = S.save_keys
-
-    if save_keys == :all
-        save_keys = valid_save_keys(S)
-    end
 
     if :log_p in save_keys
         push!(results[:log_p], log_like(model, data))

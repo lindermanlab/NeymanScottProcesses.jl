@@ -48,9 +48,8 @@ num_events(model::NeymanScottModel) = length(events(model))
 
 volume(model::NeymanScottModel) = prod(bounds(model))
 
-function first_bound(model::NeymanScottModel{N, D, E, P, G}) where {N, D, E, P, G}
-    return (N > 1) ? bounds(model)[1] : bounds(model)
-end
+first_bound(model::NeymanScottModel{N, D, E, P, G}) where {N, D, E, P, G} =
+    (N > 1) ? bounds(model)[1] : bounds(model)
 
 """
 Create a singleton latent event e = {s} containing datapoint `s` and return new 
@@ -74,6 +73,7 @@ function log_like(model::NeymanScottModel, data::Vector{<: AbstractDatapoint})
         g = log_bkgd_intensity(model, x)
 
         for event in events(model)
+            # TODO Alex, should there be a log(amplitude(event)) here
             g = logaddexp(g, log_event_intensity(model, event, x))
         end
 
@@ -88,6 +88,34 @@ function log_like(model::NeymanScottModel, data::Vector{<: AbstractDatapoint})
     return ll
 end
 
+
+
+
+# ===
+# SAMPLING
+# ===
+
+sample_datapoint(model::NeymanScottModel) = sample_datapoint(model.globals, model)
+
+sample_datapoint(event::AbstractEvent, model::NeymanScottModel) = 
+    sample_datapoint(event, model.globals, model)
+
+"""
+Sample a set of datapoints from the background process.
+"""
+function sample_background(globals::AbstractGlobals, model::NeymanScottModel)
+    num_samples = rand(Poisson(bkgd_rate(globals) * volume(model)))
+    return [sample_datapoint(model) for _ in 1:num_samples]
+end
+
+"""
+Sample a set of datapoints from an event.
+"""
+function sample(event::AbstractEvent, globals::AbstractGlobals, model::NeymanScottModel)     
+    num_samples = rand(Poisson(event.sampled_amplitude))
+    return [sample_datapoint(event, model) for _ in 1:num_samples]
+end
+
 """
 Samples an instance of the data from the model.
 """
@@ -98,10 +126,10 @@ function sample(
 
     priors = get_priors(model)
 
-    # Sample globals
+    # Optionally resample globals
     globals = resample_globals ? sample(priors) : deepcopy(get_globals(model))
 
-    # Sample events
+    # Optionally resample events
     if resample_latents 
         K = rand(Poisson(event_rate(priors) * volume(model)))
         events = E[sample_event(globals, model) for k in 1:K]
@@ -110,19 +138,26 @@ function sample(
     end
 
     # Sample background datapoints
-    S_bkgd = rand(Poisson(bkgd_rate(globals) * volume(model)))
-    spikes = D[sample_datapoint(globals, model) for _ in 1:S_bkgd]
-    assignments = Int64[-1 for _ in 1:S_bkgd]
+    spikes = sample_background(globals, model)
+    assignments = [-1 for _ in 1:length(spikes)]
 
     # Sample event-evoked datapoints
     for (ω, e) in enumerate(events)
-        S = rand(Poisson(amplitude(e)))
-        append!(spikes, D[sample_datapoint(e, globals, model) for _ in 1:S])
-        append!(assignments, Int64[ω for _ in 1:S])
+        event_spikes = sample(e, globals, model)
+        append!(spikes, event_spikes)
+        append!(assignments, [ω for _ in 1:length(event_spikes)])
     end
 
     return spikes, assignments, events
 end
+
+
+
+
+
+# ===
+# UTILITIES
+# ===
 
 """Reset new cluster and background probabilities."""
 function _reset_model_probs!(model::NeymanScottModel)

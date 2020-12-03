@@ -5,8 +5,14 @@ struct GibbsSampler <: AbstractSampler
     num_samples::Int
 end
 
-GibbsSampler(; verbose=true, save_interval=1, save_keys=:all, num_samples=100) = 
-    GibbsSampler(verbose, save_interval, save_keys, num_samples)
+function GibbsSampler(
+    ; verbose=true, 
+    save_interval=1, 
+    save_keys=(:log_p, :assignments, :events, :globals), 
+    num_samples=100
+)
+    return GibbsSampler(verbose, save_interval, save_keys, num_samples)
+end
 
 function (S::GibbsSampler)(
     model::NeymanScottModel, 

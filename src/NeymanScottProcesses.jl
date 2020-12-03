@@ -26,7 +26,7 @@ using StaticArrays
 using Distributions: cdf, mean, var
 using LinearAlgebra: norm, logdet, det
 using Random: AbstractRNG, shuffle!
-using SpecialFunctions: logabsgamma, logfactorial
+using SpecialFunctions: logabsgamma, logfactorial, gamma
 using StatsBase: pweights, denserank, mean
 using StatsFuns: softmax!, softmax, logaddexp, logsumexp, normlogpdf, normpdf
 
@@ -47,7 +47,8 @@ export RateGamma, NormalInvChisq, ScaledInvChiseq, SymmetricDirichlet
 
 # Sampling and inference
 export sample, log_prior, log_p_latents
-export GibbsSampler, Annealer
+export create_random_mask, split_data_by_mask, sample_masked_data
+export GibbsSampler, Annealer, MaskedSampler
 
 # Models
 export GaussianNeymanScottModel, GaussianPriors, GaussianGlobals, GaussianCluster, RealObservation
@@ -67,11 +68,13 @@ include("core/abstract.jl")  # Abstract types and basic functionality
 include("core/nsp.jl")  # Neyman-Scott Model
 include("core/interface.jl")  # Interface that models must implement
 include("core/eventlist.jl")  # Managing (non-parametric) events
+include("core/mask.jl")
 
 # Samplers
 include("samplers/base.jl")
 include("samplers/gibbs.jl")
 include("samplers/anneal.jl")
+include("samplers/mask.jl")
 
 # Models
 include("models/gaussian.jl")
@@ -85,8 +88,7 @@ include("plots.jl")
 # - Reincorporate SparseMultinomial and SparseDirichletMultinomial to `distributions.jl`
 
 # export log_joint
-# export split_merge_sample!, masked_gibbs!, annealed_masked_gibbs!
-# export Mask, create_random_mask, split_data_by_mask, create_blocked_mask, sample_masked_data!, sample_masked_data
+# export split_merge_sample!, annealed_masked_gibbs!
 # export DistributedNeymanScottModel, make_distributed
 
 # export Spike, EventSummaryInfo, SeqHypers, SeqGlobals, PPSeq

@@ -10,6 +10,8 @@ abstract type AbstractGlobals end
 
 abstract type AbstractPriors end
 
+abstract type AbstractMask end
+
 struct EventList{E <: AbstractEvent}
     constructor
     events::Vector{E}

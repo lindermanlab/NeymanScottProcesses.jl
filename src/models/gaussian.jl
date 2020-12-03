@@ -100,6 +100,16 @@ const GaussianNeymanScottModel{N} = NeymanScottModel{
     GaussianPriors
 }
 
+struct CircleMask{N} <: AbstractMask
+    center::SVector{N, Float64}
+    radius::Float64
+end
+
+struct CircleComplementMask{N} <: AbstractMask
+    masks::Vector{CircleMask{N}}
+    bounds::SVector{N, Float64}
+end
+
 
 
 
@@ -258,7 +268,7 @@ log_bkgd_intensity(m::GaussianNeymanScottModel, x::RealObservation) =
     log(bkgd_rate(globals(m)))
 
 log_event_intensity(m::GaussianNeymanScottModel, e::GaussianCluster, x::RealObservation) =
-    log(_multinormpdf(position(e), covariance(e), position(x)))
+    log(_multinormpdf(position(e), covariance(e), position(x))) + log(amplitude(e))
 
 log_prior(model::GaussianNeymanScottModel) =
     logpdf(bkgd_amplitude(priors(model)), bkgd_rate(globals(model)))
@@ -404,4 +414,56 @@ function gibbs_sample_globals!(
     # Update background rate
     A0 = bkgd_amplitude(priors)
     globals.bkgd_rate = rand(posterior(volume(model), n0, A0))
+end
+
+
+
+
+# ===
+# MASKING
+# ===
+
+Base.in(x::RealObservation, mask::CircleMask) = 
+    (norm(x.position .- mask.center) < mask.radius)
+
+volume(mask::CircleMask{N}) where {N} = π^(N/2) * mask.radius^N / gamma(N/2 + 1)
+
+function compute_complementary_masks(
+    masks::Vector{CircleMask{N}}, 
+    model::GaussianNeymanScottModel
+) where {N}
+    return CircleComplementMask{N}[CircleComplementMask{N}(masks, model.bounds)]
+end
+
+function create_random_mask(model::GaussianNeymanScottModel, radii::Real, pc_masked::Real)
+    bounds = model.bounds
+    N = length(bounds)
+    volume = prod(bounds .- radii)
+
+    @assert minimum(bounds) > radii
+
+    # Fill box with disjoint masks
+    masks = CircleMask{N}[]
+    points = Iterators.product([radii:(2*radii):(M-radii) for M in bounds]...)
+
+    for p in points
+        push!(masks, CircleMask{N}(SVector(p), radii))
+    end
+
+    # Sample masks
+    num_masks = floor(Int, volume * pc_masked / (π*radii^2))
+    return sample(masks, num_masks, replace=false)
+end
+
+Base.in(x::RealObservation, comp_mask::CircleComplementMask) = !(x in comp_mask.masks)
+
+function volume(complement_mask::CircleComplementMask{N}; num_samples=1000) where {N}
+    bounds = complement_mask.bounds
+    
+    num_in_complement_mask = count(
+        i -> (RealObservation{N}(rand(N) .* bounds) in complement_mask),
+        1:num_samples
+    )
+
+    return prod(bounds) * (num_in_complement_mask / num_samples)
 end

@@ -197,5 +197,55 @@ end
 
 
 
+# ===
+# MASKING
+# ===
+# The following methods are required to implement masked samplers.
+
+"""
+Compute whether or not `x` is in the region masked of by `mask`."""
+Base.in(x::AbstractDatapoint, mask::AbstractMask) = notimplemented()
+
+"""
+Compute the volume occupied by the mask.
+"""
+volume(mask::AbstractMask) = notimplemented()
 
 
+"""
+Computes the mask (or array of masks) `inv_masks` such that `{masks, inv_masks}` partition
+the model.
+"""
+complement_masks(masks::Vector{<: AbstractMask}, model::NeymanScottModel) =
+    notimplemented()
+
+"""
+The integrated background intensity in the masked off region. If the background intensity
+is uniform, there is no need to override this method.
+"""
+integrated_bkgd_intensity(model::NeymanScottModel, mask::AbstractMask) =
+    bkgd_rate(model.globals) * volume(mask)
+
+"""
+(OPTIONAL) The integrated event intensity in the masked off region. If left unimplemented, 
+this will approximate the event intensity using random samples.
+"""
+integrated_event_intensity(model::NeymanScottModel, event::AbstractEvent,  mask::AbstractMask) = 
+    _integrated_event_intensity(model, event, mask)
+
+
+"""
+(OPTIONAL) Compute baseline log likelihood (generally, the baseline is a homogeneous
+Poisson process).
+"""
+baseline_log_like(data::Vector{<: AbstractDatapoint}, masks::Vector{<: AbstractMask}) =
+    _homogeneous_baseline_log_like(data, masks)
+
+"""
+    create_random_mask(model::NeymanScottModel, R::Real, pc::Real)
+
+(OPTIONAL) Create a list of randomly generated masks with length `R`, covering `pc` percent 
+of the volume of `model`.
+"""
+create_random_mask(model::NeymanScottModel, mask_lengths::Real, percent_masked::Real) =
+    notimplemented()
