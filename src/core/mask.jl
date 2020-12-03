@@ -65,11 +65,9 @@ function log_like(
 
     # == SECOND TERM == #
     # -- Penalty on integrated intensity function -- #
-    for mask in masks        
-        ll -= integrated_bkgd_intensity(model, mask)
-        for ψ in clusters(model)
-            ll -= integrated_cluster_intensity(model, ψ, mask)
-        end
+    ll -= integrated_bkgd_intensity(model, masks)
+    for ψ in clusters(model)
+        ll -= integrated_cluster_intensity(model, ψ, masks)
     end
 
     return ll
@@ -91,10 +89,10 @@ Integrate the intensity of a cluster in the masked region.
 function _integrated_cluster_intensity(
     model::NeymanScottModel,
     cluster::AbstractCluster,
-    mask::AbstractMask;
+    masks::Vector{<: AbstractMask};
     num_samples = 1000
 )
-    num_in_mask = count(i -> (sample_datapoint(cluster, model) ∈ mask), 1:num_samples)
+    num_in_mask = count(i -> (sample_datapoint(cluster, model) ∈ masks), 1:num_samples)
     prob_in_mask = sum(num_in_mask) / num_samples
     return prob_in_mask * amplitude(cluster)
 end
