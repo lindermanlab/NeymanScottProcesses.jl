@@ -44,7 +44,8 @@ end
 # ===
 
 """
-Compute log-likelihood in masked regions.
+Compute log-likelihood of masked `data` under sampled parameters in `model`. Every
+event held in `data` is assumed to be in the union of all `masks`.
 """
 function log_like(
     model::NeymanScottModel,
@@ -104,7 +105,9 @@ end
 # ===
 
 """
-Impute missing data.
+Impute missing data by drawing samples from `model`. Samples that fall inside
+the censored region, defined by `masks`, are returned. Samples that are not in
+the masked region are rejected.
 """
 function sample_masked_data(
     model::NeymanScottModel{N, D, E, P, G}, 
@@ -117,7 +120,9 @@ function sample_masked_data(
 end
 
 """
-Impute missing data.
+Overwrite 'data' and `assignments` with new samples from `model`. Samples that fall
+inside the censored region, defined by `masks`, are returned. Samples that are not in
+the masked region are rejected.
 """
 function sample_masked_data!(
     data::Vector{<: AbstractDatapoint},
