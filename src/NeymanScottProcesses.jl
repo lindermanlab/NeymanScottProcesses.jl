@@ -91,7 +91,7 @@ include("plots.jl")
 # export split_merge_sample!, annealed_masked_gibbs!
 # export DistributedNeymanScottModel, make_distributed
 
-# export Spike, EventSummaryInfo, SeqHypers, SeqGlobals, PPSeq
-# export Cable, CablesEventSummary, CablesPriors, CablesGlobals, CablesModel
+# export Spike, SeqHypers, SeqGlobals, PPSeq
+# export Cable, CablesPriors, CablesGlobals, CablesModel
 
 end

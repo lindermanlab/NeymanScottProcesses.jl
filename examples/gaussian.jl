@@ -14,9 +14,10 @@ seed!(1234)
 
 dim = 2  # Dimension of the data
 bounds = Tuple(4.0 for _ in 1:dim)  # Model bounds
+max_cluster_radius = 0.5
 
-K = 4.0  # Event rate
-Ak = specify_gamma(20.0, 3.0)  # Event amplitude
+K = 4.0  # Cluster rate
+Ak = specify_gamma(20.0, 3.0)  # Cluster amplitude
 A0 = specify_gamma(20.0, 3.0)  # Background amplitude
 
 Ψ = 1e-3 * I(dim)  # Covariance scale
@@ -34,7 +35,7 @@ percent_masked = 0.30
 gen_priors = GaussianPriors(K, Ak, A0, Ψ, ν)
 gen_model = GaussianNeymanScottModel(bounds, gen_priors)
 
-data, assignments, events = sample(gen_model; resample_latents=true)
+data, assignments, clusters = sample(gen_model; resample_latents=true)
 
 # Generate mask
 mask = create_random_mask(gen_model, mask_radius, percent_masked)
@@ -56,7 +57,7 @@ display(p1)
 
 # Create model for inference
 priors = deepcopy(gen_priors)
-model = GaussianNeymanScottModel(bounds, priors)
+model = GaussianNeymanScottModel(bounds, priors; max_radius=max_cluster_radius)
 
 # Construct sampler
 base_sampler = GibbsSampler(

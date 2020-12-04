@@ -25,7 +25,7 @@ mutable struct NeymanScottModel{
     P <: AbstractPriors
 }
     bounds  # Float or tuple
-    max_event_radius
+    max_cluster_radius
 
     priors::P
     globals::G

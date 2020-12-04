@@ -2,11 +2,11 @@
 Neyman-Scott Process Model.
 
 bounds :
-    All datapoints and cluster clusters occur in the N-dimensional cube 
+    All datapoints and clusters occur in the N-dimensional cube 
         
         (0, bounds[1]) × ... × (0, bounds[N])
 
-max_event_radius :
+max_cluster_radius :
     Maximum radius of a cluster (used to speed up parent assignment step 
     of collapsed Gibbs sampling-- we don't compute statistics for 
     clusters futher away than this threshold away from the datapoint.)
@@ -42,7 +42,7 @@ labels(model::NeymanScottModel) = labels(clusters(model))
 
 bounds(model::NeymanScottModel) = model.bounds
 
-max_event_radius(model::NeymanScottModel) = model.max_event_radius
+max_cluster_radius(model::NeymanScottModel) = model.max_cluster_radius
 
 num_clusters(model::NeymanScottModel) = length(clusters(model))
 
@@ -131,9 +131,9 @@ function sample(
     # Sample clusters
     if resample_latents 
         K = rand(Poisson(cluster_rate(priors) * volume(model)))
-        clusters = E[sample_event(globals, model) for k in 1:K]
+        clusters = E[sample_cluster(globals, model) for k in 1:K]
     else
-        clusters = event_list_summary(model)
+        clusters = cluster_list_summary(model)
     end
 
     # Sample background datapoints

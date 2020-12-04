@@ -40,7 +40,7 @@ The integer id of the new cluster (used for assignments) is returned.
 function add_cluster!(cluster_list::ClusterList{C}) where C <: AbstractCluster
 
     # Check if any indices are skipped. If so, use the smallest skipped
-    # integer as the index for the new event.
+    # integer as the index for the new cluster.
     i = 1
     for j in cluster_list.indices
 
@@ -73,14 +73,14 @@ function add_cluster!(cluster_list::ClusterList{C}) where C <: AbstractCluster
         push!(cluster_list.clusters, C())
     end
 
-    # Return index of the empty SeqEvent struct.
+    # Return index of the empty Cluster struct.
     return cluster_list.indices[end]
 end
 
 
 """
-Marks a SeqEvent struct as empty and resets its sufficient statistics. This does not delete 
-the SeqEvent.
+Marks a Cluster struct as empty and resets its sufficient statistics. This does not delete 
+the Cluster.
 """
 function remove_cluster!(cluster_list::ClusterList, index::Int64)
     reset!(cluster_list.clusters[index])
@@ -123,7 +123,7 @@ function recompute_cluster_statistics!(
         # Add datapoint x to k-th cluster.
         add_datapoint!(model, x, k, recompute_posterior=false)
 
-        # Make sure that event k is marked as non-empty.
+        # Make sure that cluster k is marked as non-empty.
         j = searchsortedfirst(cluster_list.indices, k)
         if (j > length(cluster_list.indices)) || (cluster_list.indices[j] != k)
             insert!(cluster_list.indices, j, k)

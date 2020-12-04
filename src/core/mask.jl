@@ -102,7 +102,7 @@ function _homogeneous_baseline_log_like(
 end
 
 """
-Integrate the intensity of an cluster in the masked region.
+Integrate the intensity of a cluster in the masked region.
 """
 function _integrated_cluster_intensity(
     model::NeymanScottModel,

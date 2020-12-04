@@ -13,7 +13,7 @@ Implicit Globals:
     K ∼ Poisson(λ)
     K_0 ∼ Poisson(λ_0)
 
-Events:
+Clusters:
 
     For k = 1, ..., K
     
@@ -27,7 +27,7 @@ Background Datapoints:
 
         x_0i ∼ Uniform([0, L_1] × [0, L_2])
 
-Event Datapoints:
+Cluster Datapoints:
 
     For k = 1, ..., K
         For i = 1, ..., A_k
@@ -36,8 +36,8 @@ Event Datapoints:
 
 where
 
-    λ = event rate (`priors.cluster_rate`)
-    (α, β) = event amplitude (`priors.cluster_amplitude`)
+    λ = cluster rate (`priors.cluster_rate`)
+    (α, β) = cluster amplitude (`priors.cluster_amplitude`)
     (α_0, β_0) = background amplitude (`priors.bkgd_amplitude`)
     (L_1, L_2) = bounds (`model.bounds`)
     Ψ = scaling of covariance matrix (`priors.covariance_scale`)
@@ -47,9 +47,9 @@ where
     λ_0 = background rate (`globals.bkgd_rate`)
     K_0 = number of datapoints in the background partition
 
-    A_k = event amplitude
-    μ_k = event position
-    Σ_k = event covariance
+    A_k = cluster amplitude
+    μ_k = cluster position
+    Σ_k = cluster covariance
 
     x_ki = datapoint position
 """
@@ -294,15 +294,15 @@ function log_p_latents(model::GaussianNeymanScottModel)
     # Log prior on position
     lp = -log(volume(model)) * length(clusters(model))
 
-    for event in clusters(model)
+    for cluster in clusters(model)
 
-        # Log prior on event amplitude
-        lp += logpdf(cluster_amplitude(priors), position(event))
+        # Log prior on cluster amplitude
+        lp += logpdf(cluster_amplitude(priors), position(cluster))
 
         # Log prior on covariance
         lp += logpdf(
             InverseWishart(globals.covariance_df, globals.covariance_scale),
-            event.sampled_covariance
+            cluster.sampled_covariance
         )
     end
 
@@ -310,15 +310,15 @@ function log_p_latents(model::GaussianNeymanScottModel)
 end
 
 function log_posterior_predictive(
-    event::GaussianCluster, 
+    cluster::GaussianCluster, 
     x::RealObservation, 
     model::GaussianNeymanScottModel
 )
     # See https://www.cs.ubc.ca/~murphyk/Papers/bayesGauss.pdf
     # Extract first and second moments
-    n = event.datapoint_count
-    fm = event.first_moment
-    sm = event.second_moment
+    n = cluster.datapoint_count
+    fm = cluster.first_moment
+    sm = cluster.second_moment
     dim = length(fm)
     
     # Compute number of observations
@@ -360,8 +360,8 @@ function sample(priors::GaussianPriors)
     return GaussianGlobals(bkgd_rate)
 end
 
-"""Sample a single latent event from the global variables."""
-function sample_event(::GaussianGlobals, model::GaussianNeymanScottModel{N}) where {N}
+"""Sample a single latent cluster from the global variables."""
+function sample_cluster(::GaussianGlobals, model::GaussianNeymanScottModel{N}) where {N}
     priors = get_priors(model)
     A = rand(cluster_amplitude(priors))
     μ = rand(N) .* bounds(model)
@@ -388,18 +388,18 @@ end
 # ===
 
 function gibbs_sample_cluster_params!(
-        event::GaussianCluster,
-        model::GaussianNeymanScottModel
-    )
+    cluster::GaussianCluster,
+    model::GaussianNeymanScottModel
+)
 
     priors = get_priors(model)
     A0 = cluster_amplitude(priors)
     ν = priors.covariance_df
     Ψ = priors.covariance_scale
 
-    n = datapoint_count(event)
-    fm = event.first_moment
-    sm = event.second_moment
+    n = datapoint_count(cluster)
+    fm = cluster.first_moment
+    sm = cluster.second_moment
 
     @assert (n > 0)
 
@@ -409,9 +409,9 @@ function gibbs_sample_cluster_params!(
 
     Σ = rand(InverseWishart(ν + n, Matrix(Λ)))
 
-    event.sampled_amplitude = rand(posterior(n, A0))
-    event.sampled_position = rand(MultivariateNormal(x̄, Σ / n))
-    event.sampled_covariance = Σ
+    cluster.sampled_amplitude = rand(posterior(n, A0))
+    cluster.sampled_position = rand(MultivariateNormal(x̄, Σ / n))
+    cluster.sampled_covariance = Σ
 end
 
 function gibbs_sample_globals!(
@@ -441,7 +441,6 @@ Base.in(x::RealObservation, mask::CircleMask) =
     (norm(x.position .- mask.center) < mask.radius)
 
 volume(mask::CircleMask{N}) where {N} = π^(N/2) * mask.radius^N / gamma(N/2 + 1)
-
 
 function create_random_mask(model::GaussianNeymanScottModel, radii::Real, pc_masked::Real)
     bounds = model.bounds

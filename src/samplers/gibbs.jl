@@ -8,7 +8,7 @@ end
 function GibbsSampler(
     ; verbose=true, 
     save_interval=1, 
-    save_keys=(:log_p, :assignments, :events, :globals), 
+    save_keys=(:log_p, :assignments, :clusters, :globals), 
     num_samples=100
 )
     return GibbsSampler(verbose, save_interval, save_keys, num_samples)
@@ -93,7 +93,7 @@ function gibbs_sample_assignment!(model::NeymanScottModel, x::AbstractDatapoint)
     #    one of the K existing clusters. We could also form a new cluster
     #    (index K + 1), or assign `x` to the background (index K + 2).
 
-    # Shape and rate parameters of gamma prior on latent event amplitude.
+    # Shape and rate parameters of gamma prior on latent cluster amplitude.
     α = cluster_amplitude(model.priors).α
     β = cluster_amplitude(model.priors).β
 
@@ -134,7 +134,7 @@ function gibbs_sample_assignment!(model::NeymanScottModel, x::AbstractDatapoint)
         add_bkgd_datapoint!(model, x)
         return -1
 
-    # Assign datapoint to a new cluster. Note that the `add_event!` 
+    # Assign datapoint to a new cluster. Note that the `add_cluster!` 
     # function returns a newly allocated assignment index.
     elseif z == (K + 1)
         return add_cluster!(model, x)
