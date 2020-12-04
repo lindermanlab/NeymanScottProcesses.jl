@@ -115,7 +115,7 @@ function recompute_cluster_statistics!(
         # Skip datapoints assigned to the background.
         (k < 0) && continue
 
-        # Check that event k exists. If not, construct empty cluster.
+        # Check that cluster k exists.
         while k > length(cluster_list.clusters)
             push!(cluster_list.clusters, C())
         end
