@@ -25,7 +25,7 @@ function (S::GibbsSampler)(
 
     # Initialize cluster assignments.
     assignments = initialize_assignments(data, initial_assignments)
-    recompute_cluster_statistics!(model, clusters(model), data, assignments)
+    recompute_cluster_statistics!(model, data, assignments)
 
     # Initialize the globals using a custom function and reset model probabilities
     gibbs_initialize_globals!(model, data, assignments)
@@ -64,7 +64,7 @@ function (S::GibbsSampler)(
         _reset_model_probs!(model)  # TODO -- I think this should be done inside gibbs_sample_globals!
 
         # Recompute background and new cluster probabilities
-        recompute_cluster_statistics!(model, clusters(model), data, assignments)
+        recompute_cluster_statistics!(model, data, assignments)
 
         # Store results
         if (s % save_interval) == 0

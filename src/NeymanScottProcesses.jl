@@ -47,8 +47,8 @@ export RateGamma, NormalInvChisq, ScaledInvChiseq, SymmetricDirichlet
 
 # Sampling and inference
 export sample, log_prior, log_p_latents
-export create_random_mask, split_data_by_mask, sample_masked_data
-export GibbsSampler, Annealer, MaskedSampler
+export create_random_mask, split_data_by_mask, sample_data_in_mask
+export GibbsSampler, AnnealedSampler, MaskedSampler
 
 # Models
 export GaussianNeymanScottModel, GaussianPriors, GaussianGlobals, GaussianCluster, RealObservation

@@ -216,7 +216,7 @@ volume(mask::AbstractMask) = notimplemented()
 Computes the mask (or array of masks) `inv_masks` such that `{masks, inv_masks}` partition
 the model.
 """
-complement_masks(masks::Vector{<: AbstractMask}, model::NeymanScottModel) =
+complement_masks(masks::AbstractMask, model::NeymanScottModel) =
     notimplemented()
 
 """
@@ -231,15 +231,15 @@ integrated_bkgd_intensity(model::NeymanScottModel, mask::AbstractMask) =
 this will approximate the cluster intensity using random samples.
 """
 integrated_cluster_intensity(model::NeymanScottModel, cluster::AbstractCluster,  mask::AbstractMask) = 
-    _integrated_event_intensity(model, cluster, mask)
+    _integrated_cluster_intensity(model, cluster, mask)
 
 
 """
 (OPTIONAL) Compute baseline log likelihood (generally, the baseline is a homogeneous
 Poisson process).
 """
-baseline_log_like(data::Vector{<: AbstractDatapoint}, masks::Vector{<: AbstractMask}) =
-    _homogeneous_baseline_log_like(data, masks)
+baseline_log_like(data::Vector{<: AbstractDatapoint}, mask::AbstractMask) =
+    _homogeneous_baseline_log_like(data, mask)
 
 """
     create_random_mask(model::NeymanScottModel, R::Real, pc::Real)

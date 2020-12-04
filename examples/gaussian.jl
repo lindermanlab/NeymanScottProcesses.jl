@@ -36,13 +36,13 @@ gen_model = GaussianNeymanScottModel(bounds, gen_priors)
 
 data, assignments, events = sample(gen_model; resample_latents=true)
 
-# Generate masks
-masks = create_random_mask(gen_model, mask_radius, percent_masked)
-masked_data, unmasked_data = split_data_by_mask(data, masks)
+# Generate mask
+mask = create_random_mask(gen_model, mask_radius, percent_masked)
+heldout_data, observed_data = split_data_by_mask(data, mask)
 
 # Visualize results
 p1 = plot(data, assignments, xlim=(0, 2), ylim=(0, 2), size=(500, 500), title="")
-plot!(p1, masks)
+plot!(p1, mask)
 
 display(p1)
 @show length(data)
@@ -59,22 +59,33 @@ priors = deepcopy(gen_priors)
 model = GaussianNeymanScottModel(bounds, priors)
 
 # Construct sampler
-base_sampler = GibbsSampler(num_samples=50, save_interval=10)
-masked_sampler = MaskedSampler(base_sampler, masks; masked_data=masked_data, num_samples=3)
-sampler = Annealer(masked_sampler, 200.0, :cluster_amplitude_var; num_samples=3)
+base_sampler = GibbsSampler(
+    num_samples=50,
+    save_interval=10
+)
+masked_sampler = MaskedSampler(
+    base_sampler,
+    mask;
+    heldout_data=heldout_data,
+    num_samples=3
+)
+sampler = AnnealedSampler(
+    masked_sampler,
+    200.0,
+    :cluster_amplitude_var;
+    num_samples=3
+)
 
 # Run sampler
-results = sampler(model, unmasked_data)
-sampled_data, sampled_assignments = sample_masked_data(model, masks)
-
-new_results = base_sampler(model, unmasked_data; initial_assignments=last(results.assignments))
+results = sampler(model, observed_data)
+sampled_data, sampled_assignments = sample_data_in_mask(model, mask)
 
 # Visualize results
 p2 = plot(
-    unmasked_data, last(results.assignments);
+    observed_data, last(results.assignments);
     size=(400, 400), xlim=(0, 2), ylim=(0, 2), title="estimate"
 )
-plot!(p2, masks)
+plot!(p2, mask)
 plot!(p2, sampled_data, color="red")
 
 plot(p1, p2, layout=(1, 2), size=(800, 400))

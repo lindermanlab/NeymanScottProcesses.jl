@@ -442,12 +442,6 @@ Base.in(x::RealObservation, mask::CircleMask) =
 
 volume(mask::CircleMask{N}) where {N} = π^(N/2) * mask.radius^N / gamma(N/2 + 1)
 
-function compute_complementary_masks(
-    masks::Vector{CircleMask{N}}, 
-    model::GaussianNeymanScottModel
-) where {N}
-    return CircleComplementMask{N}[CircleComplementMask{N}(masks, model.bounds)]
-end
 
 function create_random_mask(model::GaussianNeymanScottModel, radii::Real, pc_masked::Real)
     bounds = model.bounds
@@ -466,18 +460,7 @@ function create_random_mask(model::GaussianNeymanScottModel, radii::Real, pc_mas
 
     # Sample masks
     num_masks = floor(Int, volume * pc_masked / (π*radii^2))
-    return sample(masks, num_masks, replace=false)
+    return MaskCollection(sample(masks, num_masks, replace=false))
 end
 
-Base.in(x::RealObservation, comp_mask::CircleComplementMask) = !(x in comp_mask.masks)
 
-function volume(complement_mask::CircleComplementMask{N}; num_samples=1000) where {N}
-    bounds = complement_mask.bounds
-    
-    num_in_complement_mask = count(
-        i -> (RealObservation{N}(rand(N) .* bounds) in complement_mask),
-        1:num_samples
-    )
-
-    return prod(bounds) * (num_in_complement_mask / num_samples)
-end

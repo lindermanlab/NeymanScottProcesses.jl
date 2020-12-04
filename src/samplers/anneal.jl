@@ -1,21 +1,21 @@
-struct Annealer <: AbstractSampler
+struct AnnealedSampler <: AbstractSampler
     verbose::Bool
     temperatures::Vector{Real}
     anneal_fn::Union{Function, Symbol}
     subsampler::AbstractSampler
 end
 
-valid_save_keys(S::Annealer) = valid_save_keys(S.subsampler)
+valid_save_keys(S::AnnealedSampler) = valid_save_keys(S.subsampler)
 
-function Annealer(
+function AnnealedSampler(
     subsampler::AbstractSampler, max_temp::Real, anneal_fn::Union{Function, Symbol}; 
     verbose=true, num_samples=10
 )
     temps = exp10.(range(log10(max_temp), 0, length=num_samples))
-    return Annealer(verbose, temps, anneal_fn, subsampler)
+    return AnnealedSampler(verbose, temps, anneal_fn, subsampler)
 end
 
-function Base.getproperty(obj::Annealer, sym::Symbol)
+function Base.getproperty(obj::AnnealedSampler, sym::Symbol)
     if sym === :save_interval
         return 1
     elseif sym === :num_samples
@@ -30,7 +30,7 @@ end
 """
 Run annealed sampling.
 """
-function (S::Annealer)(
+function (S::AnnealedSampler)(
     model::NeymanScottModel, 
     data::Vector{<: AbstractDatapoint};
     initial_assignments::Union{Symbol, Vector{Int64}}=:background

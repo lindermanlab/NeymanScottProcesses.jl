@@ -95,12 +95,13 @@ end
 Recompute cluster sufficient statistics.
 """
 function recompute_cluster_statistics!(
-    model::NeymanScottModel,
-    cluster_list::ClusterList{C},
+    model::NeymanScottModel{N, D, C, P, G},
     datapoints::Vector{<: AbstractDatapoint},
     assignments::AbstractVector{Int64}
-) where C <: AbstractCluster
+) where {N, D, C, P, G}
     
+    # Grab clusters
+    cluster_list = clusters(model)
 
     # Reset all clusters to empty.
     for k in cluster_list.indices
@@ -114,7 +115,7 @@ function recompute_cluster_statistics!(
         # Skip datapoints assigned to the background.
         (k < 0) && continue
 
-        # Check that event k exists.
+        # Check that event k exists. If not, construct empty cluster.
         while k > length(cluster_list.clusters)
             push!(cluster_list.clusters, C())
         end

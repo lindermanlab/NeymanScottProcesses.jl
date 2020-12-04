@@ -1,4 +1,4 @@
-@recipe function f(masks::Vector{CircleMask{N}}; d1=1, d2=2, detail=100) where {N}
+@recipe function f(masks::MaskCollection{M}; d1=1, d2=2, detail=100) where {M <: CircleMask}
     num_masks = length(masks)
     x, y = zeros(detail, num_masks), zeros(detail, num_masks)
 

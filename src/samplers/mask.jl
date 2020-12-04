@@ -1,15 +1,15 @@
-struct MaskedSampler{M <: AbstractMask} <: AbstractSampler
+struct MaskedSampler <: AbstractSampler
     verbose::Bool
     num_samples::Int
     subsampler::AbstractSampler
-    masks::Vector{M}
-    masked_data::Union{Vector{<: AbstractDatapoint}, Nothing}
+    heldout_region::AbstractMask
+    heldout_data::Union{Vector{<: AbstractDatapoint}, Nothing}
 end
 
 valid_save_keys(S::MaskedSampler) = (:train_log_p, :test_log_p, valid_save_keys(S.subsampler)...)
 
-MaskedSampler(subsampler, masks; verbose=true, num_samples=10, masked_data=nothing) =
-    MaskedSampler(verbose, num_samples, subsampler, masks, masked_data)
+MaskedSampler(subsampler, masks; verbose=true, num_samples=10, heldout_data=nothing) =
+    MaskedSampler(verbose, num_samples, subsampler, masks, heldout_data)
 
 function Base.getproperty(obj::MaskedSampler, sym::Symbol)
     if sym === :save_interval
@@ -23,51 +23,82 @@ end
 
 function (S::MaskedSampler)(
     model::NeymanScottModel,
-    unmasked_data::Vector{T};
+    observed_data::Vector{T};
     initial_assignments::Vector{Int64}=:background,
 ) where {T <: AbstractDatapoint}
-    verbose, num_samples = S.verbose, S.num_samples
-    subsampler, masked_data, masks = S.subsampler, S.masked_data, S.masks
 
-    # Compute inverse masks
-    inv_masks = complement_masks(masks, model)
+    # Grab sampler parameters.
+    verbose = S.verbose
+    num_samples = S.num_samples
+    subsampler = S.subsampler
+    heldout_data = S.heldout_data
+    heldout_region = S.heldout_region
 
-    # Sanity check.
-    @assert length(unmasked_data) === length(initial_assignments)
-    @assert all_data_in_masks(unmasked_data, inv_masks)
-    @assert all_data_in_masks(masked_data, masks)
-    @assert all_data_not_in_masks(unmasked_data, masks)
-    @assert all_data_not_in_masks(masked_data, inv_masks)
+    # Compute complement of masked region.
+    observed_region = ComplementMask(heldout_region, volume(model))
+
+    # Sanity checks.
+    @assert length(observed_data) === length(initial_assignments)
+    @assert all_data_in_masks(observed_data, observed_region)
+    @assert all_data_in_masks(heldout_data, heldout_region)
+    @assert all_data_not_in_masks(observed_data, heldout_region)
+    @assert all_data_not_in_masks(heldout_data, observed_region)
 
     # Compute relative masked volume and baselines
-    pc_masked = 1 - masked_proportion(model, inv_masks)
-    train_baseline = baseline_log_like(unmasked_data, inv_masks)
-    test_baseline = (masked_data === nothing) ? 0.0 : baseline_log_like(masked_data, masks)
+    percent_heldout = 100 * volume(heldout_region) / volume(model)
+    train_baseline = baseline_log_like(observed_data, observed_region)
+    test_baseline = (heldout_data === nothing) ? 0.0 : baseline_log_like(heldout_data, heldout_region)
 
     # Initialize assignments, results, and sampled data
-    unmasked_assignments = initialize_assignments(unmasked_data, initial_assignments)
-    results = initialize_results(model, unmasked_assignments, S)
-    sampled_data, sampled_assignments = T[], Int64[]
+    assignments = initialize_assignments(observed_data, initial_assignments)
+    results = initialize_results(model, assignments, S)
 
-    verbose && @show pc_masked train_baseline test_baseline
+    # Allocate vectors for imputed datapoints.
+    imputed_data = T[]
+    imputed_assignments = Int64[]
+
+    # Display statistics of interest.
+    verbose && @show percent_heldout train_baseline test_baseline
 
     for i in 1:num_samples
-        # Sample fake data in masked regions and run subsampler
-        sample_masked_data!(sampled_data, sampled_assignments, model, masks)
-        _data = vcat(unmasked_data, sampled_data)
-        _assgn = vcat(unmasked_assignments, sampled_assignments)
 
-        # Run sampler
+        # Sample fake data in masked region and run subsampler
+        sample_data_in_mask!(
+            imputed_data,
+            imputed_assignments,
+            model,
+            heldout_region
+        )
+
+        # Concatenate imputed data and assignments.
+        _data = vcat(observed_data, imputed_data)
+        _assgn = vcat(assignments, imputed_assignments)
+
+        # Run sampler on observed and imputed data.
         new_results = subsampler(model, _data; initial_assignments=_assgn)
-        unmasked_assignments .= view(last(new_results.assignments), 1:length(unmasked_data))
+        assignments .= view(last(new_results.assignments), 1:length(observed_data))
 
-        # Update results
-        update_results!(results, model, unmasked_assignments, unmasked_data, S)
-        push!(results.train_log_p, normalized_log_like(model, unmasked_data, inv_masks, train_baseline))
-        push!(results.test_log_p, normalized_log_like(model, masked_data, masks, test_baseline))
+        # Update results ()
+        update_results!(
+            results, model, assignments, observed_data, S
+        )
+
+        # Compute log-likelihood on "train set"
+        push!(
+            results.train_log_p,
+            normalized_log_like(model, observed_data, observed_region, train_baseline)
+        )
+
+        # Compute log-likelihood on "test set"
+        push!(
+            results.test_log_p,
+            normalized_log_like(model, heldout_data, heldout_region, test_baseline)
+        )
+
     end
+
     # Before returning, remove assignments assigned to imputed spikes.
-    recompute_statistics!(model, unmasked_data, unmasked_assignments)
+    recompute_cluster_statistics!(model, observed_data, assignments)
     
     # TODO Rescale likelihoods?
    
