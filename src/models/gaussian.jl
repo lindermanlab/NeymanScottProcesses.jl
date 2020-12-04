@@ -70,9 +70,13 @@ mutable struct GaussianCluster{N} <: AbstractCluster{N}
     first_moment::SVector{N, Float64}
     second_moment::SMatrix{N, N, Float64}
 
-    sampled_position
-    sampled_covariance
+    _predictive_normalizer::Float64
+    _predictive_mean::SVector{N, Float64}
+    _predictive_variance::SMatrix{N, N, Float64}
+
     sampled_amplitude
+    sampled_position::SVector{N, Float64}
+    sampled_covariance::SMatrix{N, N, Float64}
 end
 
 mutable struct GaussianGlobals <: AbstractGlobals
@@ -132,17 +136,28 @@ function _logstudent_t_pdf(μ, Σ, ν, x, d=2)
     )
 end
 
-function _multinormpdf(μ, Σ, x)
+function _logmultinormpdf(μ, Σ, x)
     k = length(μ)
     return (
-        (2π)^(-k/2) 
-        * det(Σ)^(-1/2) 
-        * exp((-1/2) * (x - μ)' * Σ * (x - μ))
+        (-k/2) * log(2π)
+        + (-1/2) * logdet(Σ)
+        + (-1/2) * (x - μ)' * inv(Σ) * (x - μ)
     )
 end
 
+function _logstudent_t_normalizer(μ, Σ, ν, dim)
+    return (
+        lgamma((ν + dim) / 2) 
+        - lgamma(ν / 2)
+        - (dim/2) * log(ν)
+        - (dim/2) * log(π)
+        - (1/2) * logdet(Σ)
+    )
+end
 
-
+function _logstudent_t_unnormalized_pdf(μ, Σ, ν, dim, x)
+    return - ((ν + dim) / 2) * log(1 + (1/ν) * (x - μ)' * inv(Σ) * (x - μ))
+end
 
 # ===
 # CONSTRUCTORS
@@ -152,7 +167,11 @@ constructor_args(e::GaussianCluster) = ()
 
 function GaussianCluster(μ, Σ, A)
     N = length(μ)
-    return GaussianCluster{N}(0, zeros(SVector{N}), zeros(SMatrix{N, N}), μ, Σ, A)
+    return GaussianCluster{N}(
+        0, zeros(SVector{N}), zeros(SMatrix{N, N}), 
+        0.0, zeros(SVector{N}), zeros(SMatrix{N, N}),
+        A, μ, Σ,
+    )
 end
 
 function GaussianCluster{N}() where {N}
@@ -160,9 +179,12 @@ function GaussianCluster{N}() where {N}
         0,
         zeros(SVector{N}), 
         zeros(SMatrix{N, N}),
+        0.0,
         zeros(SVector{N}),
         zeros(SMatrix{N, N}),
-        NOT_SAMPLED_AMPLITUDE
+        NOT_SAMPLED_AMPLITUDE,
+        zeros(SVector{N}),
+        zeros(SMatrix{N, N}),
     )
 end
 
@@ -267,6 +289,48 @@ function add_datapoint!(
     return k
 end
 
+function set_posterior!(model::GaussianNeymanScottModel, k::Int)
+    e = clusters(model)[k]
+
+    # See https://www.cs.ubc.ca/~murphyk/Papers/bayesGauss.pdf
+    # Extract first and second moments
+    n = e.datapoint_count
+    fm = e.first_moment
+    sm = e.second_moment
+    dim = length(fm)
+    
+    # Compute number of observations
+    κ0 = model.priors.mean_pseudo_obs
+    ν0 = model.priors.covariance_df
+
+    κn = n + κ0
+    νn = n + ν0
+    df = νn - dim + 1
+
+    # Compute mean parameter
+    μ0 = model.priors.mean_prior
+    μ = (fm + κ0*μ0) / κn
+
+    # Compute covariance parameter
+    S = sm - n*μ*μ'  # Centered covariance
+    Ψ0 = model.priors.covariance_scale
+    Ψn = Ψ0 + S + ((κ0 * n) / κn) * (fm/n - μ0) * (fm/n - μ0)'
+    Σ = (κn + 1) / (κn * (νn - dim + 1)) * Ψn
+
+    e._predictive_mean = μ
+    e._predictive_variance = Σ
+    e._predictive_normalizer = _logstudent_t_normalizer(μ, Σ, df, dim)
+end
+
+function too_far(
+    x::RealObservation{N}, 
+    cluster::GaussianCluster{N}, 
+    model::GaussianNeymanScottModel{N}
+) where {N}
+    distance = norm(position(cluster) - position(x))
+    return distance > max_cluster_radius(model)
+end
+
 
 
 
@@ -278,7 +342,7 @@ log_bkgd_intensity(m::GaussianNeymanScottModel, x::RealObservation) =
     log(bkgd_rate(globals(m)))
 
 log_cluster_intensity(m::GaussianNeymanScottModel, c::GaussianCluster, x::RealObservation) =
-    log(_multinormpdf(position(c), covariance(c), position(x))) + log(amplitude(c))
+    _logmultinormpdf(position(c), covariance(c), position(x)) + log(amplitude(c))
 
 log_prior(model::GaussianNeymanScottModel) =
     logpdf(bkgd_amplitude(priors(model)), bkgd_rate(globals(model)))
@@ -310,39 +374,21 @@ function log_p_latents(model::GaussianNeymanScottModel)
 end
 
 function log_posterior_predictive(
-    cluster::GaussianCluster, 
+    cluster::GaussianCluster{N}, 
     x::RealObservation, 
-    model::GaussianNeymanScottModel
-)
-    # See https://www.cs.ubc.ca/~murphyk/Papers/bayesGauss.pdf
-    # Extract first and second moments
-    n = cluster.datapoint_count
-    fm = cluster.first_moment
-    sm = cluster.second_moment
-    dim = length(fm)
-    
+    model::GaussianNeymanScottModel{N}
+) where {N}
     # Compute number of observations
-    κ0 = model.priors.mean_pseudo_obs
     ν0 = model.priors.covariance_df
+    n = cluster.datapoint_count
+    df = n + ν0 - N + 1
 
-    κn = n + κ0
-    νn = n + ν0
+    # Extract cached params
+    μ = cluster._predictive_mean
+    Σ = cluster._predictive_variance
+    Z = cluster._predictive_normalizer
 
-    # Compute mean parameter
-    μ0 = model.priors.mean_prior
-    μn = (fm + κ0*μ0) / κn
-
-    # Compute covariance parameter
-    S = sm - n*μn*μn'  # Centered covariance
-    Ψ0 = model.priors.covariance_scale
-    Ψn = Ψ0 + S + ((κ0 * n) / κn) * (fm/n - μ0) * (fm/n - μ0)'
-
-    return _logstudent_t_pdf(
-        μn, 
-        (κn + 1) / (κn * (νn - dim + 1)) * Ψn, 
-        νn - dim + 1, 
-        position(x)
-    )
+    return Z + _logstudent_t_unnormalized_pdf(μ, Σ, df, N, position(x))
 end
 
   
@@ -410,8 +456,8 @@ function gibbs_sample_cluster_params!(
     Σ = rand(InverseWishart(ν + n, Matrix(Λ)))
 
     cluster.sampled_amplitude = rand(posterior(n, A0))
-    cluster.sampled_position = rand(MultivariateNormal(x̄, Σ / n))
-    cluster.sampled_covariance = Σ
+    cluster.sampled_position = SVector{2}(rand(MultivariateNormal(x̄, Σ / n)))
+    cluster.sampled_covariance = SMatrix{2, 2}(Σ)
 end
 
 function gibbs_sample_globals!(

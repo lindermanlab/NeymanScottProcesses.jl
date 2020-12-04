@@ -64,8 +64,7 @@ set_posterior!(model::NeymanScottModel, k::Int) = nothing
 (OPTIONAL) Returns `true` if `x` is so far away from `cluster` that, with
 high certainty, `cluster` is not the parent of `x`.
 """
-too_far(x::AbstractDatapoint, cluster::AbstractCluster, model::NeymanScottModel) =
-    (norm(position(cluster) .- position(x)) > max_cluster_radius(model))
+too_far(x::AbstractDatapoint, cluster::AbstractCluster, model::NeymanScottModel) = false
 
 """
 (OPTIONAL) Summarize clusters and return a list of simpler structs 
@@ -223,15 +222,15 @@ complement_masks(masks::Vector{<: AbstractMask}, model::NeymanScottModel) =
 The integrated background intensity in the masked off region. If the background intensity
 is uniform, there is no need to override this method.
 """
-integrated_bkgd_intensity(model::NeymanScottModel, mask::AbstractMask) =
-    bkgd_rate(model.globals) * volume(mask)
+integrated_bkgd_intensity(model::NeymanScottModel, masks::Vector{<: AbstractMask}) =
+    bkgd_rate(model.globals) * sum(volume.(masks))
 
 """
 (OPTIONAL) The integrated cluster intensity in the masked off region. If left unimplemented, 
 this will approximate the cluster intensity using random samples.
 """
-integrated_cluster_intensity(model::NeymanScottModel, cluster::AbstractCluster,  mask::AbstractMask) = 
-    _integrated_cluster_intensity(model, cluster, mask)
+integrated_cluster_intensity(model::NeymanScottModel, cluster::AbstractCluster, masks::Vector{<: AbstractMask}) = 
+    _integrated_cluster_intensity(model, cluster, masks)
 
 
 """
