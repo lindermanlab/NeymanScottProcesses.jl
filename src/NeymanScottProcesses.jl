@@ -23,7 +23,7 @@ using SparseArrays
 using StaticArrays
 
 # Methods
-using Distributions: cdf, mean, var
+using Distributions: cdf, mean, var, logpdf, rand!
 using LinearAlgebra: norm, logdet, det
 using Random: AbstractRNG, shuffle!
 using SpecialFunctions: logabsgamma, logfactorial, gamma
@@ -32,7 +32,8 @@ using StatsFuns: softmax!, softmax, logaddexp, logsumexp, normlogpdf, normpdf
 
 # Distributions
 using Distributions: Categorical, Chisq, Normal, Poisson, TDist
-using Distributions: Dirichlet, Multinomial, MultivariateNormal, InverseWishart
+using Distributions: Dirichlet, MultivariateNormal, InverseWishart
+using Distributions: DirichletMultinomial, Multinomial
 
 
 
@@ -42,17 +43,20 @@ using Distributions: Dirichlet, Multinomial, MultivariateNormal, InverseWishart
 # ===
 
 # Distributions
-export specify_gamma, mean, var
-export RateGamma, NormalInvChisq, ScaledInvChiseq, SymmetricDirichlet
+export specify_gamma, specify_inverse_gamma, mean, var
+export RateGamma, InverseGamma, NormalInvChisq, ScaledInvChiseq, SymmetricDirichlet
 
 # Sampling and inference
 export sample, log_prior, log_p_latents
 export create_random_mask, split_data_by_mask, sample_masked_data
 export GibbsSampler, Annealer, MaskedSampler
 
+# Helper functions
+export cooccupancy_matrix
+
 # Models
 export GaussianNeymanScottModel, GaussianPriors, GaussianGlobals, GaussianCluster, RealObservation
-
+export CablesModel, CablesPriors, CablesGlobals, CableCluster, Cable
 
 
 
@@ -78,20 +82,17 @@ include("samplers/mask.jl")
 
 # Models
 include("models/gaussian.jl")
+include("models/cables.jl")
 
-# Plotting
+# Plotting and diagnostics
+include("diagnostic.jl")
 include("plots.jl")
 
 
 
 # TODO
-# - Reincorporate SparseMultinomial and SparseDirichletMultinomial to `distributions.jl`
-
-# export log_joint
-# export split_merge_sample!, annealed_masked_gibbs!
-# export DistributedNeymanScottModel, make_distributed
-
-# export Spike, SeqHypers, SeqGlobals, PPSeq
-# export Cable, CablesPriors, CablesGlobals, CablesModel
+# - split_merge_sample!
+# - DistributedNeymanScottModel, make_distributed
+# - Spike, SeqHypers, SeqGlobals, PPSeq
 
 end

@@ -1,6 +1,6 @@
-using LinearAlgebra: I
 using NeymanScottProcesses
 using Plots
+using LinearAlgebra: I
 using Random: seed!
 
 seed!(1234)
@@ -65,18 +65,15 @@ masked_sampler = MaskedSampler(base_sampler, masks; masked_data=masked_data, num
 sampler = Annealer(masked_sampler, 200.0, :cluster_amplitude_var; num_samples=3)
 
 # Run sampler
-# results = 
-@time sampler(model, unmasked_data)
-# sampled_data, sampled_assignments = sample_masked_data(model, masks)
+results = sampler(model, unmasked_data)
+sampled_data, sampled_assignments = sample_masked_data(model, masks)
 
-# new_results = base_sampler(model, unmasked_data; initial_assignments=last(results.assignments))
+# Visualize results
+p2 = plot(
+    unmasked_data, last(results.assignments);
+    size=(400, 400), xlim=(0, 2), ylim=(0, 2), title="estimate"
+)
+plot!(p2, masks)
+plot!(p2, sampled_data, color="red")
 
-# # Visualize results
-# p2 = plot(
-#     unmasked_data, last(results.assignments);
-#     size=(400, 400), xlim=(0, 2), ylim=(0, 2), title="estimate"
-# )
-# plot!(p2, masks)
-# plot!(p2, sampled_data, color="red")
-
-# plot(p1, p2, layout=(1, 2), size=(800, 400))
+plot(p1, p2, layout=(1, 2), size=(800, 400))

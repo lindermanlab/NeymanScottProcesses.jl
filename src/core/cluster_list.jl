@@ -13,10 +13,12 @@ indices :
 ClusterList
 
 function ClusterList(cluster::C) where C <: AbstractCluster
-    ClusterList([cluster], Int64[])
+    return ClusterList([cluster], Int64[])
 end
 
 # labels(ev::ClusterList) = ev.indices
+
+constructor_args(ev::ClusterList) = constructor_args(ev.clusters[1])
 
 Base.getindex(ev::ClusterList, i::Int64) = ev.clusters[i]
 
@@ -70,7 +72,7 @@ function add_cluster!(cluster_list::ClusterList{C}) where C <: AbstractCluster
     # If needed, create and append an empty cluster by calling the
     # constructor for `C` (where C <: AbstractCluster).
     if length(cluster_list.clusters) < length(cluster_list.indices)
-        push!(cluster_list.clusters, C())
+        push!(cluster_list.clusters, C(constructor_args(cluster_list)...))
     end
 
     # Return index of the empty Cluster struct.
@@ -116,7 +118,7 @@ function recompute_cluster_statistics!(
 
         # Check that cluster k exists.
         while k > length(cluster_list.clusters)
-            push!(cluster_list.clusters, C())
+            push!(cluster_list.clusters, C(cluster_args()))
         end
 
         # Add datapoint x to k-th cluster.

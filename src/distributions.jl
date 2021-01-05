@@ -4,7 +4,7 @@
 
 
 # ===
-# Gamma distribtuion (with rate parameter)
+# GAMMA (rate parameterized)
 # ===
 
 
@@ -36,14 +36,50 @@ Distributions.var(g::RateGamma) = g.α / (g.β * g.β)
 function specify_gamma(_mean::Real, _var::Real)
     β = _mean / _var
     α = _mean * β
-    RateGamma(α, β)
+    return RateGamma(α, β)
 end
+
+
+
+
+# ===
+# INVERSE GAMMA
+# ===
+
+
+struct InverseGamma
+    α::Float64
+    β::Float64
+end
+
+Distributions.logpdf(g::InverseGamma, x) = logpdf(RateGamma(g.α, g.β), x)
+
+Distributions.rand(rng::AbstractRNG, g::InverseGamma) = 1 / rand(rng, RateGamma(g.α, g.β))
+
+Distributions.mean(g::InverseGamma) = (g.α > 1) ? g.β / (g.α - 1) : error("α must be > 1")
+
+Distributions.var(g::InverseGamma) = 
+    (g.α > 2) ? (g.β^2) / ((g.α - 1)^2 * (g.α - 2)) : error("α must be > 2")
+
+function posterior(x̄, σ̄2, μ0, n, ν, prior::InverseGamma)
+    α = prior.α + (n/2)
+    β = prior.β + (1/2)*(n*σ̄2) + (1/2)*((n*ν)/(ν + n))*((x̄ - μ0)^2)
+    return InverseGamma(α, β)
+end
+
+"""Specifies InverseGamma distribution by first two moments."""
+function specify_inverse_gamma(μ::Real, σ²::Real)
+    α = μ^2 / σ² + 2
+    β = μ * (α - 1)
+    return InverseGamma(α, β)
+end
+
+
 
 
 # ===
 # SYMMETRIC DIRICHLET
 # ===
-
 
 """
 Symmetric Dirichlet distribution
@@ -77,10 +113,11 @@ function Distributions.logpdf(g::SymmetricDirichlet, p::AbstractVector)
 end
 
 
+
+
 # ===
 # SCALED INVERSE CHI SQUARED
 # ===
-
 
 struct ScaledInvChisq
     ν::Float64
@@ -104,8 +141,11 @@ function Distributions.logpdf(g::ScaledInvChisq, θ::Float64)
 end
 
 
-# === NORMAL INVERSE CHI SQUARED === #
 
+
+# === 
+# NORMAL INVERSE CHI SQUARED
+# ===
 
 """
 A normal-inverse-chi-squared distribution is a convienent
@@ -162,4 +202,98 @@ end
 function Distributions.logpdf(g::NormalInvChisq, μ::Float64, σ2::Float64)
     lp = logpdf(ScaledInvChisq(g.ν, g.s2), σ2)
     return lp + logpdf(Normal(g.m, sqrt(σ2 / g.k)), μ)
+end
+
+
+
+
+# ===
+# SPARSE SAMPLE FROM MULTINOMIAL
+# ===
+
+function Distributions._logpdf(d::Multinomial, x::SparseVector{Int, Int})
+    p = Distributions.probs(d)
+
+    # Compute normalizer
+    logp = logfactorial(Distributions.ntrials(d))
+
+    # Compute unnormalized density
+    for (i, xi) in zip(x.nzind, x.nzval)
+        @inbounds logp += xi*log(p[i]) - logfactorial(xi)
+    end
+
+    return logp
+end
+
+
+
+
+# ===
+# SYMMETRIC DIRICHLET MULTINOMIAL
+# ===
+
+struct SymmetricDirichletMultinomial
+    conc::Real
+    dim::Int
+    n::Int
+    log_normalizer::Real
+end
+
+function SymmetricDirichletMultinomial(conc::Real, dim::Int, n::Int)
+    log_normalizer = logfactorial(n) + lgamma(dim * conc) - lgamma(n + dim * conc)
+    return SymmetricDirichletMultinomial(conc, dim, n, log_normalizer)
+end
+
+Distributions.length(g::SymmetricDirichletMultinomial) = g.dim
+
+function Distributions.logpdf(g::SymmetricDirichletMultinomial, x::SparseVector{Int64, Int64})
+    # Log normalizer
+    lp = g.log_normalizer
+
+    # Likelihood
+    lgamma_αk = lgamma(g.conc)
+    @inbounds for xi in x.nzval
+        lp += lgamma(xi + g.conc)
+        lp -= logfactorial(xi) 
+        lp -= lgamma_αk
+    end
+    
+    return lp
+end
+
+
+
+
+# ===
+# SPARSE DIRICHLET MULTINOMIAL
+# ===
+
+struct SparseDirichletMultinomial
+    n::Int
+    dense_conc::Real
+    sparse_conc::SparseVector{Int, Int}
+end
+
+function Distributions.logpdf(d::SparseDirichletMultinomial, x::SparseVector{Int, Int})
+    dim = length(d.sparse_conc)
+    Σαₖ = dim * d.dense_conc + sum(d.sparse_conc)
+
+    # Compute log-normalizer
+    logp = logfactorial(d.n)
+    logp += lgamma(Σαₖ)
+    logp -= lgamma(d.n + Σαₖ)
+
+    # Compute log of unnormalized density---if xᵢ = 0, the summand is zero, so we only 
+    # need to iterate across the non-zero xᵢ
+    for ind in 1:length(x.nzind)
+        @inbounds i = x.nzind[ind]::Int
+        @inbounds xᵢ = x.nzval[ind]::Int
+
+        # PFLAG
+        logp += lgamma(xᵢ + d.sparse_conc[i] + d.dense_conc)
+        logp -= logfactorial(xᵢ) 
+        logp -= lgamma(d.sparse_conc[i] + d.dense_conc)
+    end
+    
+    return logp
 end
