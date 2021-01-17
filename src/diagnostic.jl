@@ -6,7 +6,7 @@ function cooccupancy_matrix(assignments::Vector{Int})
     return metric.(assignments, assignments')
 end
 
-function cooccupancy_matrix(assignments_history::Vector{Vector{Int}})
+function cooccupancy_matrix(assignments_history)
     n = length(first(assignments_history))
 
     C = zeros(n, n)
