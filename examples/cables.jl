@@ -64,15 +64,6 @@ function cables_annealer(priors::CablesPriors, T)
     new_mean = 1 + (1/max_temp) * (max_temp - log10(T)) * (μ - 1)
     priors.cluster_amplitude = specify_gamma(new_mean, σ2)
 
-    # Anneal cluster rate
-    # new_cluster_rate = T * priors.cluster_rate
-    # priors.cluster_rate = new_cluster_rate
-
-    # Anneal background amplitude
-    # new_mean = (1/T) * mean(priors.bkgd_amplitude)
-    # new_var = (1/T^2) * var(priors.bkgd_amplitude)
-    # priors.bkgd_amplitude = specify_gamma(new_mean, new_var)
-
     return priors
 end
 
