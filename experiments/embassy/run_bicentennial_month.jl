@@ -2,7 +2,7 @@
 Runs the cables model on experimental embassy data for June and July of 1976.
 """
 
-mode = :inspect
+mode = :run
 
 @assert mode in (:inspect, :run)
 
@@ -17,15 +17,15 @@ include("dataset_utils.jl")
 
 
 # Find data file path
-if length(ARGS) > 0
-    datadir = ARGS[1]
-else
-    print("Enter data directory: ")
-    datadir = readline()
+datadir = "/Users/degleris/data/cables"
+if datadir === nothing
+    if length(ARGS) > 0
+        datadir = ARGS[1]
+    else
+        print("Enter data directory: ")
+        datadir = readline()
+    end
 end
-println("Data directory set to $datadir")
-
-
 
 
 # Script parameters
@@ -37,15 +37,15 @@ config = Dict(
     :max_cluster_radius => Inf,
     :cluster_rate => 1.0 / 30,
     :cluster_amplitude => specify_gamma(500, 10^2),
-    :cluster_width => specify_inverse_gamma(2.0, 0.01^2),
+    :cluster_width => specify_inverse_gamma(2.0, (1e-4)^2),
     :background_amplitude => specify_gamma(100, 10^2),
-    :background_word_concentration => 1000.0,
+    :background_word_concentration => 1e8,
     :background_word_spread => 1.0,
 
     :seed => 1976,
     :samples_per_anneal => 10,
     :save_interval => 1,
-    :temps => exp10.(vcat(range(6.0, 0.0, length=5)))
+    :temps => exp10.(vcat(range(6.0, 0.0, length=5))),
     #exp10.(vcat(range(6.0, 0, length=20), fill(0.0, 3))),
     :results_path => "bicentennial_month.jld",
 )
@@ -58,3 +58,9 @@ if mode == :run
 end
 # Inspect mode - just look at results
 data, word_distr, meta, results, model = load_results(datadir, config)
+normalized_word_distr = word_distr ./ sum(word_distr, dims=1)
+
+inspect(cluster) = inspect(cluster, get_date(config[:min_date]), meta;
+    num_words=50, num_embassies=5, word_distr=normalized_word_distr)
+
+println("\007")
