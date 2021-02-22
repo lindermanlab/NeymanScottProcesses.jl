@@ -7,6 +7,8 @@ using SparseArrays
 import CSV
 import JLD
 
+using NeymanScottProcesses: volume
+
 
 
 
@@ -46,13 +48,14 @@ function load_train_save(datadir, config)
     @assert max_date > min_date
 
     # Load data
-    data, embassy_dim, word_dim = 
-        construct_cables(datadir, min_date, max_date, vocab_cutoff)
+    data, embassy_dim, word_dim = construct_cables(datadir, min_date, max_date, vocab_cutoff)
     word_distr = load_empirical_word_distribution(datadir)
     meta = load_cables_metadata(datadir)
    
     @show length(data) 
     @show embassy_dim word_dim
+
+    normalized_word_distr = word_distr ./ sum(word_distr, dims=1)
 
     # Parse model parameters
     T_max = float(max_date - min_date)
@@ -197,7 +200,7 @@ end
 
 function get_cluster_stats(model)
     f(c) = (μ=c.sampled_position, σ=sqrt(c.sampled_variance), A=c.sampled_amplitude)
-    stats = Any[(-1, (μ=nothing, σ=nothing, A=model.globals.bkgd_rate))]
+    stats = Any[(-1, (μ=nothing, σ=nothing, A=model.globals.bkgd_rate * volume(model)))]
     for i in model.clusters.indices
         c = model.clusters[i]
         push!(stats, (i, f(c)))
@@ -249,8 +252,7 @@ function construct_cables(datadir, min_date, max_date, vocab_cutoff)
     # Remove cables with zero words, which occur due to vocab truncation
     filter!(x -> x._word_sum > 0, data)
 
-    num_embassies = maximum(embassies)
-    num_words = size(doc_word_mat, 1)
+    num_words, num_embassies = size(word_distr)
 
     return data, num_embassies, num_words
 end

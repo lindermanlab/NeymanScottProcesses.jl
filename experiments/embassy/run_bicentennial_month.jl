@@ -38,7 +38,7 @@ config = Dict(
     :cluster_rate => 1.0 / 30,
     :cluster_amplitude => specify_gamma(500, 10^2),
     :cluster_width => specify_inverse_gamma(2.0, (1e-4)^2),
-    :background_amplitude => specify_gamma(100, 10^2),
+    :background_amplitude => specify_gamma(1000, 10^2),
     :background_word_concentration => 1e8,
     :background_word_spread => 1.0,
 
