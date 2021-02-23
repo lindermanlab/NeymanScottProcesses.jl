@@ -137,7 +137,7 @@ end
 get_dateid(date::Date, reference::Date=DATASET_START_DATE) =
     (date - reference).value
 
-get_date(dateid::Int, reference::Date=DATASET_START_DATE) =
+get_date(dateid::Real, reference::Date=DATASET_START_DATE) =
     reference + Day(dateid)
 
 function load_cables_metadata(datadir)
@@ -160,13 +160,14 @@ function inspect(cable::Cable, start_date, meta; num_words=5, word_distr=nothing
 
     embassy = meta.embassies[cable.embassy, :embassy]
 
-    word_scores = cable.words
-    if word_distr !== nothing
-        word_scores ./= word_distr[:, cable.embassy]
-        word_scores .+= 1/size(word_distr, 1)  # Regularize via Laplace smoothing
-    end
-    word_ids = sortperm(word_scores, rev=true)[1:num_words]
-    relevant_words = join(meta.vocab[word_ids, :word], " -- ")
+    # word_scores = cable.words
+    # if word_distr !== nothing
+    #     word_scores ./= word_distr[:, cable.embassy]
+    #     word_scores .+= 1/size(word_distr, 1)  # Regularize via Laplace smoothing
+    # end
+    # word_ids = sortperm(word_scores, rev=true)[1:num_words]
+    # relevant_words = join(meta.vocab[word_ids, :word], " -- ")
+    relevant_words = join(meta.vocab[cable.words .> 0, :word], " -- ")
 
     @info "cable details:" dateid date embassy relevant_words
     return nothing
