@@ -2,6 +2,7 @@ using NeymanScottProcesses
 using Plots
 using LinearAlgebra: I
 using Random: seed!
+using JLD
 
 seed!(1234)
 
@@ -10,8 +11,13 @@ seed!(1234)
 # SCRIPT PARAMETERS
 # ===
 
-num_trials = 1
-num_parameters = 3
+datadir = "/Users/degleris/data/cables/"
+results_file = "results/dpm_limit.jld"
+
+num_trials = 2
+num_parameters = 5
+
+θ_arr = exp10.(range(0, 2, length=num_parameters))
 
 
 # ===
@@ -39,17 +45,20 @@ percent_masked = 0.30
 # GENERATIVE MODEL
 # ===
 
+
+
 dataset_arr = []
 
 
 for trial_ind in 1:num_trials
     priors = GaussianPriors(K, Ak, A0, Ψ, ν)
-    model = GaussianNeymanScottModel(bounds, gen_priors)
+    model = GaussianNeymanScottModel(bounds, priors)
 
-    data, assignments, clusters = sample(gen_model; resample_latents=true)
+    data, assignments, clusters = sample(model; resample_latents=true)
+    @show length(data)
 
     # Generate masks
-    masks = create_random_mask(gen_model, mask_radius, percent_masked)
+    masks = create_random_mask(model, mask_radius, percent_masked)
     masked_data, unmasked_data = split_data_by_mask(data, masks)
 
     dataset = (
@@ -76,26 +85,53 @@ for trial_ind in 1:num_trials
     trial_results = []
 
     for param_ind in 1:num_parameters
+
+        @show (trial_ind, param_ind)
+
+        gen_priors, masks, masked_data, unmasked_data = 
+            dataset.priors, dataset.masks, dataset.masked_data, dataset.unmasked_data
         
+
+        # Make priors like DPM
+        θ = θ_arr[param_ind]
+        K_θ = θ * K
+        Ak_θ = RateGamma(Ak.α / θ, Ak.β)
+
+        @show (θ, K_θ, Ak_θ)
+
         # Create model for inference
-        priors = nothing # TODO
+        priors =  GaussianPriors(K_θ, Ak_θ, A0, Ψ, ν)
         model = GaussianNeymanScottModel(bounds, priors; max_radius=max_cluster_radius)
 
         # Construct sampler
-        base_sampler = GibbsSampler(num_samples=50, save_interval=10)
-        masked_sampler = MaskedSampler(base_sampler, masks; masked_data=masked_data, num_samples=3)
-        sampler = Annealer(masked_sampler, 200.0, :cluster_amplitude_var; num_samples=3)
+        base_sampler = GibbsSampler(num_samples=50, save_interval=10, verbose=false)
+        masked_sampler = MaskedSampler(base_sampler, masks; masked_data=masked_data, 
+            num_samples=3, verbose=false)
+        sampler = Annealer(masked_sampler, 200.0, :cluster_amplitude_var; 
+            num_samples=3, verbose=false)
 
         # Run sampler
-        results = sampler(model, unmasked_data)
+        @time r = sampler(model, unmasked_data)
 
-        inference_results = (
-            priors=priors, model=model, results=results
+        results = (
+            priors=priors, model=model, results=r
         )
 
-        push!(trial_results, inference_results)
+        push!(trial_results, results)
+
+        println()
     end
 
 
     push!(results_arr, trial_results)
 end
+
+f = joinpath(datadir, results_file)
+JLD.@save f dataset_arr results_arr
+
+
+scores = [
+    mean([results_arr[1][j].results.test_log_p[end] for i in 1:num_trials])
+    for j = 1:num_parameters
+]
+# plot(θ_arr, scores, xlabel="K / K0", ylabel="test log like", legend=false, lw=6)
