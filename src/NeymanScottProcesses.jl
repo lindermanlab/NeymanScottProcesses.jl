@@ -1,5 +1,10 @@
 module NeymanScottProcesses
 
+# ===
+# CONSTANTS
+# ===
+
+const NOT_SAMPLED_AMPLITUDE = -2.0
 
 # === 
 # EXTENSIONS
@@ -20,11 +25,12 @@ import StatsBase: sample
 using RecipesBase
 using Statistics
 using SparseArrays
-using StaticArrays
+# using StaticArrays
+using IntervalSets: width, AbstractInterval
 
 # Methods
 using Distributions: cdf, mean, var
-using LinearAlgebra: norm, logdet, det
+using LinearAlgebra: I, norm, logdet, det, eigvals
 using Random: AbstractRNG, shuffle!
 using SpecialFunctions: logabsgamma, logfactorial, gamma
 using StatsBase: pweights, denserank, mean
@@ -33,8 +39,8 @@ using StatsFuns: softmax!, softmax, logaddexp, logsumexp, normlogpdf, normpdf
 # Distributions
 using Distributions: Categorical, Chisq, Normal, Poisson, TDist
 using Distributions: Dirichlet, Multinomial, MultivariateNormal, InverseWishart
-
-
+using Distributions: Product, Uniform, Distribution, ContinuousUnivariateDistribution
+using PyPlot: PyObject, plt
 
 
 # ===
@@ -47,13 +53,16 @@ export RateGamma, NormalInvChisq, ScaledInvChiseq, SymmetricDirichlet
 
 # Sampling and inference
 export sample, log_prior, log_p_latents
-export create_random_mask, split_data_by_mask, sample_data_in_mask
+export sample_full_process, plot!
+export sample_random_spheres, split_data, sample_in_mask
 export GibbsSampler, AnnealedSampler, MaskedSampler
 
 # Models
-export GaussianNeymanScottModel, GaussianPriors, GaussianGlobals, GaussianCluster, RealObservation
+export NeymanScottPriors, NeymanScottModel
+export GaussianPriors, GaussianGlobals, GaussianCluster
 
-
+# Regions
+export Region, Box, Sphere
 
 
 # ===
@@ -64,11 +73,12 @@ include("utils.jl")
 include("distributions.jl")
 
 # Core types
-include("core/abstract.jl")  # Abstract types and basic functionality
-include("core/nsp.jl")  # Neyman-Scott Model
-include("core/interface.jl")  # Interface that models must implement
-include("core/cluster_list.jl")
-include("core/mask.jl")
+include("core/regions.jl")       # Define geometric regions.
+include("core/model.jl")         # Main type definitions.
+include("core/interface.jl")     # Rename?
+include("core/cluster_list.jl")  # ClusterList struct functions.
+include("core/likelihoods.jl")   # Likelihood function and other probability densities.
+include("core/samples.jl")       # Methods to draw samples from the generative model.
 
 # Samplers
 include("samplers/base.jl")
@@ -79,8 +89,11 @@ include("samplers/mask.jl")
 # Models
 include("models/gaussian.jl")
 
+# Datasets
+include("datasets/gaussian_testdata.jl")
+
 # Plotting
-include("plots.jl")
+# include("plots.jl")
 
 
 

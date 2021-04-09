@@ -1,18 +1,18 @@
 struct AnnealedSampler <: AbstractSampler
     verbose::Bool
     temperatures::Vector{Real}
-    anneal_fn::Union{Function, Symbol}
+    anneal_method::Symbol
     subsampler::AbstractSampler
 end
 
 valid_save_keys(S::AnnealedSampler) = valid_save_keys(S.subsampler)
 
 function AnnealedSampler(
-    subsampler::AbstractSampler, max_temp::Real, anneal_fn::Union{Function, Symbol}; 
+    subsampler::AbstractSampler, max_temp::Real, anneal_method::Symbol; 
     verbose=true, num_samples=10
 )
     temps = exp10.(range(log10(max_temp), 0, length=num_samples))
-    return AnnealedSampler(verbose, temps, anneal_fn, subsampler)
+    return AnnealedSampler(verbose, temps, anneal_method, subsampler)
 end
 
 function Base.getproperty(obj::AnnealedSampler, sym::Symbol)
@@ -32,16 +32,17 @@ Run annealed sampling.
 """
 function (S::AnnealedSampler)(
     model::NeymanScottModel, 
-    data::Vector{<: AbstractDatapoint};
+    data::Vector;
     initial_assignments::Union{Symbol, Vector{Int64}}=:background
 )
-    verbose, temperatures = S.verbose, S.temperatures
-    anneal_fn, subsampler = S.anneal_fn, S.subsampler
+    # Sampler options.
+    verbose = S.verbose
+    temperatures = S.temperatures
+    subsampler = S.subsampler
+    anneal_method = S.anneal_method
 
     # Set up annealing function
-    # TODO Alex, should we verify the annealing function is valid?
     true_priors = deepcopy(model.priors)
-    anneal_fn = get_anneal_function(anneal_fn, model.priors)
     
     # Initialize assignments and results
     assignments = initialize_assignments(data, initial_assignments)
@@ -51,9 +52,14 @@ function (S::AnnealedSampler)(
         verbose && println("TEMP:  ", temp)
 
         # Anneal and recompute restaurant process probabilities
-        new_priors = deepcopy(true_priors)
-        model.priors = anneal_fn(new_priors, temp)
-        _reset_model_probs!(model)
+        model.priors = anneal(true_priors, temp, anneal_method)
+
+        # Resample global variables, conditioned on new priors.
+        # Importantly, this updates `globals.bkgd_log_prob` and
+        # `globals.bkgd_rate` which are sensitive to annealing.
+        gibbs_sample_globals!(
+            model.globals, model.domain, model.priors, data, assignments
+        )
 
         # Run subsampler and store results
         new_results = subsampler(model, data; initial_assignments=assignments)
@@ -65,35 +71,51 @@ function (S::AnnealedSampler)(
 end
 
 """
-Convert symbols into anneal functions.
+Anneals priors
 """
-function get_anneal_function(anneal_fn::Union{Function, Symbol}, priors)
-    if typeof(anneal_fn) <: Function
-        f = anneal_fn
+function anneal(priors::NeymanScottPriors, temp::Float64, method::Symbol)
 
-    elseif anneal_fn === :cluster_amplitude_var
-        f = function (priors::AbstractPriors, T)
-            new_mean = mean(priors.cluster_amplitude)
-            new_var = T * var(priors.cluster_amplitude)
-            priors.cluster_amplitude = specify_gamma(new_mean, new_var)
-            return priors
-        end
+    if method === :cluster_size
 
-    elseif anneal_fn === :background_amplitude_mean
-        f = function (priors::AbstractPriors, T)
-            new_mean = (1/T) * mean(priors.bkgd_amplitude)
-            new_var = var(priors.bkgd_amplitude)
-            priors.bkgd_amplitude = specify_gamma(new_mean, new_var)
-            return priors
-        end
+        # Start with large variance in cluster amplitudes, which
+        # encourages small clusters to form early in sampling.
+        clus_amp_mean = mean(priors.cluster_amplitude)
+        clus_amp_var = temp * var(priors.cluster_amplitude)
+
+        # Return priors with modified cluster amplitude distribution.
+        return NeymanScottPriors(
+            priors.cluster_rate,
+            specify_gamma(clus_amp_mean, clus_amp_var),
+            priors.bkgd_amplitude,
+            priors.cluster_priors,
+        )
+
+    elseif method === :bkgd
+
+        # Start with low-amplitude background process, which 
+        # forces datapoints to be assigned to clusters early on.
+        bkgd_amp_mean = (1 / temp) * mean(priors.bkgd_amplitude)
+        bkgd_amp_var = var(priors.bkgd_amplitude)
+
+        # Return priors with modified cluster amplitude distribution.
+        return NeymanScottPriors(
+            priors.cluster_rate,
+            priors.cluster_amplitude,
+            specify_gamma(bkgd_amp_mean, bkgd_amp_var),
+            priors.cluster_priors,
+        )
+
+    elseif method === :rate
+
+        # Start with high rate of latent events.
+        return NeymanScottPriors(
+            temp * priors.cluster_rate,
+            priors.cluster_amplitude,
+            priors.bkgd_amplitude,
+            priors.cluster_priors,
+        )
 
     else
-        error(
-            "Invalid annealing function."
-            * "Either pass a function f(priors, temp) or one of :cluster_amplitude_var "
-            * "and :background_amplitude_mean"
-        )
+        error("Invalid annealing method specified.")
     end
-
-    return f
 end

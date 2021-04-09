@@ -67,11 +67,11 @@ function update_results!(results, model, assignments, data, S::AbstractSampler)
     end
 
     if :latents in save_keys
-        push!(results[:clusters], deepcopy(cluster_list_summary(model)))
+        push!(results[:clusters], deepcopy([c for c in model.cluster_list]))
     end
 
     if :globals in save_keys
-        push!(results[:globals], deepcopy(get_globals(model)))
+        push!(results[:globals], deepcopy(model.globals))
     end
 
     return results

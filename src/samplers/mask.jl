@@ -1,15 +1,26 @@
+# ===
+# MaskedSampler 
+# ===
+
 struct MaskedSampler <: AbstractSampler
     verbose::Bool
     num_samples::Int
     subsampler::AbstractSampler
-    heldout_region::AbstractMask
-    heldout_data::Union{Vector{<: AbstractDatapoint}, Nothing}
+    heldout_region::Region
+    heldout_data::Union{Vector, Nothing}
+end
+
+function MaskedSampler(
+        subsampler::AbstractSampler,
+        heldout_region::Region;
+        verbose=true,
+        num_samples=10,
+        heldout_data=nothing
+    )
+    return MaskedSampler(verbose, num_samples, subsampler, heldout_region, heldout_data)
 end
 
 valid_save_keys(S::MaskedSampler) = (:train_log_p, :test_log_p, valid_save_keys(S.subsampler)...)
-
-MaskedSampler(subsampler, masks; verbose=true, num_samples=10, heldout_data=nothing) =
-    MaskedSampler(verbose, num_samples, subsampler, masks, heldout_data)
 
 function Base.getproperty(obj::MaskedSampler, sym::Symbol)
     if sym === :save_interval
@@ -21,11 +32,15 @@ function Base.getproperty(obj::MaskedSampler, sym::Symbol)
     end
 end
 
+# ===
+# Main sampling function
+# ===
+
 function (S::MaskedSampler)(
     model::NeymanScottModel,
     observed_data::Vector{T};
     initial_assignments::Vector{Int64}=:background,
-) where {T <: AbstractDatapoint}
+) where {T}
 
     # Grab sampler parameters.
     verbose = S.verbose
@@ -35,17 +50,27 @@ function (S::MaskedSampler)(
     heldout_region = S.heldout_region
 
     # Compute complement of masked region.
-    observed_region = ComplementMask(heldout_region, volume(model))
+    observed_region = ComplementRegion(heldout_region, model.domain)
 
     # Sanity checks.
+    @assert T == observations_type(model.domain)
     @assert length(observed_data) === length(initial_assignments)
-    @assert all_data_in_masks(observed_data, observed_region)
-    @assert all_data_in_masks(heldout_data, heldout_region)
-    @assert all_data_not_in_masks(observed_data, heldout_region)
-    @assert all_data_not_in_masks(heldout_data, observed_region)
+    @assert (volume(observed_region) + volume(heldout_region)) ≈ volume(model.domain)
+    for x in observed_data
+        @assert x in observed_region
+        @assert !(x in heldout_region)
+    end
+    for x in heldout_data
+        @assert x in heldout_region
+        @assert !(x in observed_region)
+    end
+    # @assert all_data_in_masks(observed_data, observed_region)
+    # @assert all_data_in_masks(heldout_data, heldout_region)
+    # @assert all_data_not_in_masks(observed_data, heldout_region)
+    # @assert all_data_not_in_masks(heldout_data, observed_region)
 
     # Compute relative masked volume and baselines
-    percent_heldout = 100 * volume(heldout_region) / volume(model)
+    percent_heldout = 100 * volume(heldout_region) / volume(model.domain)
     train_baseline = baseline_log_like(observed_data, observed_region)
     test_baseline = (heldout_data === nothing) ? 0.0 : baseline_log_like(heldout_data, heldout_region)
 
@@ -63,7 +88,7 @@ function (S::MaskedSampler)(
     for i in 1:num_samples
 
         # Sample fake data in masked region and run subsampler
-        sample_data_in_mask!(
+        sample_in_mask!(
             imputed_data,
             imputed_assignments,
             model,
@@ -105,9 +130,6 @@ function (S::MaskedSampler)(
     return results
 end
 
-all_data_in_masks(data, masks) = (data === nothing) || all([x ∈ masks for x in data])
-
-all_data_not_in_masks(data, masks) = (data === nothing) || all([x ∉ masks for x in data])
-
 normalized_log_like(model, data, masks, baseline) =
     (data == nothing) ? 0.0 : log_like(model, data, masks) - baseline
+

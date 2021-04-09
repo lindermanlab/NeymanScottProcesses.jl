@@ -15,18 +15,24 @@ This is a light wrapper to Distributions.jl which
 uses the alternative parameterization based on
 shape and scale to characterize the gamma distribution.
 """
-struct RateGamma
+struct RateGamma <: ContinuousUnivariateDistribution
     α::Float64
     β::Float64
 end
 
+# Conjugate posterior for a homogeneous Poisson process.
 posterior(volume::Real, n::Real, prior::RateGamma) = RateGamma(prior.α + n, prior.β + volume)
 
+# Conjugate posterior for a Poisson distribution with one observation.
 posterior(count_var::Real, prior::RateGamma) = RateGamma(prior.α + count_var, prior.β + 1)
+
+Distributions.pdf(g::RateGamma, x::Float64) = pdf(Distributions.Gamma(g.α, 1 / g.β), x)
 
 Distributions.logpdf(g::RateGamma, x::Float64) = logpdf(Distributions.Gamma(g.α, 1 / g.β), x)
 
-Distributions.rand(rng::AbstractRNG, g::RateGamma) = rand(rng, Distributions.Gamma(g.α, 1 / g.β))
+Distributions.sampler(g::RateGamma) = Distributions.Gamma(g.α, 1 / g.β)
+
+Distributions.rand(g::RateGamma) = rand(Distributions.Gamma(g.α, 1 / g.β))
 
 Distributions.mean(g::RateGamma) = g.α / g.β
 
