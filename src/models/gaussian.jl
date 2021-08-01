@@ -435,8 +435,8 @@ end
 
 function gibbs_sample_cluster_params!(
     cluster::GaussianCluster,
-    model::GaussianNeymanScottModel
-)
+    model::GaussianNeymanScottModel{N}
+) where {N}
 
     priors = get_priors(model)
     A0 = cluster_amplitude(priors)
@@ -456,8 +456,8 @@ function gibbs_sample_cluster_params!(
     Σ = rand(InverseWishart(ν + n, Matrix(Λ)))
 
     cluster.sampled_amplitude = rand(posterior(n, A0))
-    cluster.sampled_position = SVector{2}(rand(MultivariateNormal(x̄, Σ / n)))
-    cluster.sampled_covariance = SMatrix{2, 2}(Σ)
+    cluster.sampled_position = SVector{N}(rand(MultivariateNormal(x̄, Σ / n)))
+    cluster.sampled_covariance = SMatrix{N, N}(Σ)
 end
 
 function gibbs_sample_globals!(

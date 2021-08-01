@@ -97,7 +97,7 @@ function load_train_save(datadir, config)
 
     # Save results
     f = joinpath(datadir, "results", results_path)
-    JLD.@save f results model
+    JLD.@save f config results model
 
     return results, model
 end
@@ -113,8 +113,14 @@ function cables_annealer(priors::CablesPriors, T, max_temp)
 end
 
 function load_results(datadir, config)
+    # Load results
     results_path = config[:results_path]
-    min_date, max_date, vocab_cutoff = config[:min_date], config[:max_date], config[:vocab_cutoff]
+    r = JLD.load(joinpath(datadir, "results", results_path))
+
+    config = r["config"]
+
+    min_date, max_date, vocab_cutoff = 
+        config[:min_date], config[:max_date], config[:vocab_cutoff]
 
     # Load data
     data, embassy_dim, word_dim = 
@@ -122,10 +128,7 @@ function load_results(datadir, config)
     word_distr = load_empirical_word_distribution(datadir)
     meta = load_cables_metadata(datadir)
 
-    # Load results
-    r = JLD.load(joinpath(datadir, "results", results_path))
-
-    return data, word_distr, meta, r["results"], r["model"]
+    return data, word_distr, meta, r["config"], r["results"], r["model"]
 end
 
 
@@ -196,7 +199,7 @@ function inspect(
     relevant_words = join(meta.vocab[word_ids, :word], " -- ")
 
     @info "cluster details:" dateid date relevant_embassies relevant_words
-    return nothing
+    return meta.vocab[word_ids, :word]
 end
 
 function get_cluster_stats(model)
@@ -234,7 +237,9 @@ end
 # PREPROCESSING
 # ===
 
-function construct_cables(datadir, min_date, max_date, vocab_cutoff)
+function construct_cables(datadir, min_date, max_date, vocab_cutoff; min_words=3)
+    @assert min_words >= 1
+
     # Load data
     docs, dates, embassies, doc_word_mat = load_input_data(datadir)
     word_distr = load_empirical_word_distribution(datadir)
@@ -251,7 +256,7 @@ function construct_cables(datadir, min_date, max_date, vocab_cutoff)
     data = _make_cable.(1:length(docs))
 
     # Remove cables with zero words, which occur due to vocab truncation
-    filter!(x -> x._word_sum > 0, data)
+    filter!(x -> x._word_sum > min_words, data)
 
     num_words, num_embassies = size(word_distr)
 
