@@ -9,9 +9,11 @@ seed!(12345)
 # ===
 
 T_max = 100.0  # Model bounds
-max_cluster_radius = 30.0
+max_cluster_radius = 15.0
+percent_masked = 0.10
+mask_window = 1.0
 
-word_dim = 10_000
+word_dim = 1_000
 embassy_dim = 100
 
 K = 1 / 15.0  # Cluster rate
@@ -37,8 +39,12 @@ gen_model = CablesModel(T_max, gen_priors)
 
 data, assignments, clusters = sample(gen_model; resample_latents=true)
 
+# Generate masks
+masks = create_random_mask(gen_model, mask_window, percent_masked)
+masked_data, unmasked_data = split_data_by_mask(data, masks)
 
-# Visualize results
+
+# Visualize data
 p11 = plot(data, assignments, size=(250, 150))
 
 display(p11)
@@ -74,16 +80,17 @@ priors = deepcopy(gen_priors)
 model = CablesModel(T_max, priors; max_radius=max_cluster_radius)
 
 # Construct base sampler
-base_sampler = GibbsSampler(num_samples=20, save_interval=1, save_keys=(:log_p, :assignments))
+base_sampler = GibbsSampler(num_samples=10, save_interval=1, save_keys=(:log_p, :assignments))
+masked_sampler = MaskedSampler(base_sampler, masks; masked_data=masked_data, num_samples=3)
 
 # Construct annealer
-sampler = Annealer(true, temps, cables_annealer, base_sampler)
+sampler = Annealer(true, temps, cables_annealer, masked_sampler)
 
 # Run sampler
-@time results = sampler(model, data)
+@time results = sampler(model, unmasked_data)
 
 # Visualize results
-p12 = plot(data, last(results.assignments); title="estimate", legend=false, size=(250, 150))
+p12 = plot(unmasked_data, last(results.assignments); title="estimate", legend=false, size=(250, 150))
 
 p1 = plot(p11, p12, layout=(1, 2), size=(600, 150))
 display(p1)
@@ -105,7 +112,9 @@ num_clusters(ω) = length(unique(ω)) - 1
 K_hist = num_clusters.(results.assignments)
 
 p21 = plot(Δω_hist, ylabel="Δω", legend=false)
-p22 = plot(results.log_p, ylabel="log like", legend=false)
+p22 = plot(results.train_log_p .- minimum(results.train_log_p), 
+    ylabel="log like", legend=false)
+plot!(results.test_log_p .- minimum(results.test_log_p))
 p23 = plot(K_hist, ylabel="num clusters", legend=false)
 p2 = plot(p21, p22, p23, layout=(3, 1))
 display(p2)
@@ -115,8 +124,8 @@ p31 = heatmap(
     title="true partition", c=:binary, colorbar=false
 )
 p32 = heatmap(
-    cooccupancy_matrix(results.assignments[end-39:end]);
-    title="last 40 samples", c=:binary, colorbar=false
+    cooccupancy_matrix(results.assignments[end-5:end]);
+    title="last 5 samples", c=:binary, colorbar=false
 )
 p3 = plot(p31, p32, layout=(1, 2))
 display(p3)

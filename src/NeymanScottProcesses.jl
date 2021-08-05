@@ -58,6 +58,9 @@ export cooccupancy_matrix
 export GaussianNeymanScottModel, GaussianPriors, GaussianGlobals, GaussianCluster, RealObservation
 export CablesModel, CablesPriors, CablesGlobals, CableCluster, Cable
 
+# Masks
+export CircleMask, CablesMask
+
 
 
 # ===
