@@ -6,7 +6,7 @@ using InteractiveUtils
 
 # ╔═╡ fed40468-df48-11eb-13bc-95f2af985a19
 begin
-	using Pkg; Pkg.activate()
+	using Pkg; Pkg.activate(".")
 	using LinearAlgebra
 	using Random
 	using Distributions
