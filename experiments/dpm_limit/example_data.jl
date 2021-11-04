@@ -1,12 +1,12 @@
 ### A Pluto.jl notebook ###
-# v0.14.7
+# v0.16.4
 
 using Markdown
 using InteractiveUtils
 
 # ╔═╡ fed40468-df48-11eb-13bc-95f2af985a19
 begin
-	using Pkg; Pkg.activate(".")
+    using Pkg; Pkg.activate("."); Pkg.instantiate();
 	using LinearAlgebra
 	using Random
 	using Distributions
@@ -160,18 +160,6 @@ begin
 	main_plt
 end
 
-# ╔═╡ 04817417-00bb-46e0-be1b-3dcc89f9f106
-
-
-# ╔═╡ 913b02f5-f370-4743-aec3-3e211e02a122
-
-
-# ╔═╡ 776c393d-9e01-4569-83aa-6a4f8b1a7744
-
-
-# ╔═╡ 2164bf6a-27c6-447b-be9f-c7d3d45c3417
-
-
 # ╔═╡ Cell order:
 # ╠═fed40468-df48-11eb-13bc-95f2af985a19
 # ╟─8d4761b5-8b0b-432f-8561-3224c9233946
@@ -187,7 +175,3 @@ end
 # ╠═0494486f-84db-41ee-9d13-dfb4560a25b1
 # ╟─bf928bd7-351b-4a12-b9b5-619df91ffd96
 # ╠═4c622d22-496f-43c9-bda8-0853f6eddc55
-# ╠═04817417-00bb-46e0-be1b-3dcc89f9f106
-# ╠═913b02f5-f370-4743-aec3-3e211e02a122
-# ╠═776c393d-9e01-4569-83aa-6a4f8b1a7744
-# ╠═2164bf6a-27c6-447b-be9f-c7d3d45c3417

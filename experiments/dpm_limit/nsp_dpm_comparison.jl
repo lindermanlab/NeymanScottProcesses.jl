@@ -1,12 +1,12 @@
 ### A Pluto.jl notebook ###
-# v0.16.1
+# v0.16.4
 
 using Markdown
 using InteractiveUtils
 
 # ╔═╡ acc93e48-e012-11eb-048e-35c010d6acee
 begin
-	using Pkg; Pkg.activate(".")
+    using Pkg; Pkg.activate("."); Pkg.instantiate();
 	using Plots
 	using Random, StatsPlots
 	
