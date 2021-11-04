@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.14.7
+# v0.16.1
 
 using Markdown
 using InteractiveUtils
@@ -98,9 +98,11 @@ begin
 	nsp_model = []
 	r_nsp = []
 	
-	Random.seed!(3)
 	t_nsp = @elapsed for chain in 1:num_chains
+		Random.seed!(2 + chain)
 		model = GaussianNeymanScottModel(bounds, priors)
+		@show NeymanScottProcesses.log_like(model, data)
+		
 		r = sampler(model, data)
 		
 		push!(nsp_model, model)
@@ -108,6 +110,50 @@ begin
 	end
 	
 	"Fit $num_chains models in $t_nsp seconds"
+end
+
+# ╔═╡ 1401a242-3e07-4d2d-be8b-ec5599868457
+md"""
+#### NSP with RJMCMC
+"""
+
+# ╔═╡ 7560d033-9b51-4812-a857-19862b1767ec
+# Construct samplers
+begin
+	rj_base_sampler = ReversibleJumpSampler(num_samples=100, birth_prob=0.5)
+    rj_sampler = Annealer(rj_base_sampler, 1e4, :cluster_amplitude_var; 
+		num_samples=50, verbose=false)
+end;
+
+# ╔═╡ a274e4f7-b8d7-4c8a-a730-70889b0126ba
+begin
+	rj_nsp_model = []
+	rj_r_nsp = []
+	
+	t_rj = @elapsed for chain in 1:num_chains
+		Random.seed!(2 + chain)
+		model = GaussianNeymanScottModel(bounds, priors)
+		@show NeymanScottProcesses.log_like(model, data)
+		
+		r = rj_sampler(model, data)
+		
+		push!(rj_nsp_model, model)
+		push!(rj_r_nsp, r)
+	end
+	
+	"Fit $num_chains models in $t_rj seconds"
+end
+
+# ╔═╡ 8b5b0efa-8be5-4b29-8531-1f52abb8ebf7
+let
+	plot(size=(250, 200), dpi=300)
+	plot!([append!([0.0], r.log_p) for r in r_nsp], 
+		lw=2, c=1, label=["collapsed gibbs" nothing nothing], alpha=0.7)
+	plot!([append!([0.0], r.log_p) for r in rj_r_nsp], 
+		lw=2, c=2, label=["reversible jump" nothing nothing], alpha=0.7)
+	
+	
+	plot!(ylim=(1000, Inf), legend=:bottomright, ylabel="log likelihood", xlabel="number of samples")
 end
 
 # ╔═╡ b4180fdc-b209-414e-a028-b7890e69c302
@@ -330,6 +376,10 @@ end
 # ╠═60cf6826-5b63-4d0d-8ee9-1c78b6e5b5dc
 # ╟─5af966fc-cf8e-4a54-9eb3-c84c445ad6f0
 # ╠═0a91fe9a-1f4e-4b10-beef-896d41fcadd3
+# ╟─1401a242-3e07-4d2d-be8b-ec5599868457
+# ╠═7560d033-9b51-4812-a857-19862b1767ec
+# ╠═a274e4f7-b8d7-4c8a-a730-70889b0126ba
+# ╠═8b5b0efa-8be5-4b29-8531-1f52abb8ebf7
 # ╠═b4180fdc-b209-414e-a028-b7890e69c302
 # ╠═b301bb90-2178-4d49-bca2-e1f7ce59975f
 # ╠═27a3553e-9211-45b8-b963-55c4511e6917

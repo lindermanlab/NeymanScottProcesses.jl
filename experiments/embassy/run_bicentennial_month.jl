@@ -38,6 +38,7 @@ config = Dict(
     :min_date => get_dateid(Date(1976, 6, 21)),
     :max_date => get_dateid(Date(1976, 7, 31)),
     :vocab_cutoff => 100,
+    :percent_masked => 0.05,
 
     :max_cluster_radius => Inf,
     :cluster_rate => 1.0 / 30,
@@ -48,7 +49,8 @@ config = Dict(
     :background_word_spread => 1.0,
 
     :seed => 1976,
-    :samples_per_anneal => 10,
+    :samples_per_mask => 5,
+    :masks_per_anneal => 3,
     :save_interval => 1,
     :temps => exp10.(vcat(range(6.0, 0.0, length=5))),
     #exp10.(vcat(range(6.0, 0, length=20), fill(0.0, 3))),
@@ -67,6 +69,11 @@ end
 
 # Inspect mode - just look at results
 data, word_distr, meta, config, results, model = load_results(datadir, config)
+
+# Mask data
+Random.seed!(12345)
+masks = create_random_mask(model, 1.0, config[:percent_masked])
+masked_data, unmasked_data = split_data_by_mask(data, masks)
 
 
 
@@ -171,8 +178,8 @@ for (i, C) in enumerate(clusters)
     fontsize = 6
 
     
-    if i ∈ [1, 4]
-        shift = (i == 1) ? -6 : 6
+    if i ∈ [2, 4]
+        shift = (i == 4) ? -6 : 6
         line_color = pop!(relevant_colors)
         relevant_words = filter(w -> length(w) > 3, relevant_words)
         annotation = text(join(relevant_words[1:5], "\n"), fontsize, :Bold, color=line_color)

@@ -60,6 +60,7 @@ function load_train_save(datadir, config)
     # Parse model parameters
     T_max = float(max_date - min_date)
     max_cluster_radius = C[:max_cluster_radius]
+    percent_masked = C[:percent_masked]
     K = C[:cluster_rate]
     Ak = C[:cluster_amplitude]
     σ0 = C[:cluster_width]
@@ -73,7 +74,8 @@ function load_train_save(datadir, config)
 
     # Parse sampler parameters
     seed = C[:seed]
-    samples_per_anneal = C[:samples_per_anneal]
+    samples_per_mask = C[:samples_per_mask]
+    masks_per_anneal = C[:masks_per_anneal]
     save_interval = C[:save_interval]
     temps = C[:temps]
     results_path = C[:results_path]
@@ -82,18 +84,26 @@ function load_train_save(datadir, config)
     Random.seed!(seed)
     priors = CablesPriors(K, Ak, σ0, ϵ_conc, ν_conc, A0, ϵ0_conc, ν0_conc, δ_conc)
     model = CablesModel(T_max, priors; max_radius=max_cluster_radius)
+
+    # Mask data
+    Random.seed!(12345)
+    masks = create_random_mask(model, 1.0, percent_masked)
+    masked_data, unmasked_data = split_data_by_mask(data, masks)
   
     # Run sampler
     base_sampler = GibbsSampler(
-        num_samples=samples_per_anneal,
+        num_samples=samples_per_mask,
         save_interval=save_interval,
         save_keys=(:log_p, :assignments)
     )
 
-    anneal_rule(P, T) = cables_annealer(P, T, maximum(temps))
-    sampler = Annealer(true, temps, anneal_rule, base_sampler)
+    masked_sampler = MaskedSampler(base_sampler, masks; masked_data=masked_data, num_samples=masks_per_anneal)
 
-    @time results = sampler(model, data)
+
+    anneal_rule(P, T) = cables_annealer(P, T, maximum(temps))
+    sampler = Annealer(true, temps, anneal_rule, masked_sampler)
+
+    @time results = sampler(model, unmasked_data)
 
     # Save results
     f = joinpath(datadir, "results", results_path)

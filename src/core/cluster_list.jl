@@ -136,3 +136,32 @@ function recompute_cluster_statistics!(
         set_posterior!(model, k)
     end
 end
+
+
+function recompute_cluster_statistics_in_place!(
+    model::NeymanScottModel,
+    cluster_list::ClusterList{C},
+    datapoints::Vector{<: AbstractDatapoint},
+    assignments::AbstractVector{Int64}
+) where C <: AbstractCluster
+
+    # Reset all clusters to empty.
+    for k in cluster_list.indices
+        reset!(cluster_list.clusters[k])
+    end
+
+    # Add datapoints back to their previously assigned cluster.
+    for (x, k) in zip(datapoints, assignments)
+        
+        # Skip datapoints assigned to the background.
+        (k < 0) && continue
+
+        # Add datapoint x to k-th cluster.
+        add_datapoint!(model, x, k, recompute_posterior=false)
+    end
+
+    # Update the posterior, since we didn't do so when adding datapoints
+    for k in cluster_list.indices
+        set_posterior!(model, k)
+    end
+end

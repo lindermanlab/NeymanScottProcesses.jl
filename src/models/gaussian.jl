@@ -254,12 +254,15 @@ function remove_datapoint!(
     model::GaussianNeymanScottModel, 
     x::RealObservation, 
     k::Int;
-    recompute_posterior::Bool=true
+    recompute_posterior::Bool=true,
+    kill_empty::Bool=true,
 ) 
     e = clusters(model)[k]
 
     # If this is the last datapoint, we can return early.
-    (e.datapoint_count == 1) && (return remove_cluster!(clusters(model), k))
+    if kill_empty && (e.datapoint_count == 1)
+        return remove_cluster!(clusters(model), k)
+    end
 
     # Otherwise update the sufficient statistics.
     e.datapoint_count -= 1
@@ -361,7 +364,7 @@ function log_p_latents(model::GaussianNeymanScottModel)
     for cluster in clusters(model)
 
         # Log prior on cluster amplitude
-        lp += logpdf(cluster_amplitude(priors), position(cluster))
+        lp += logpdf(cluster_amplitude(priors), cluster.sampled_amplitude)
 
         # Log prior on covariance
         lp += logpdf(
@@ -447,17 +450,24 @@ function gibbs_sample_cluster_params!(
     fm = cluster.first_moment
     sm = cluster.second_moment
 
-    @assert (n > 0)
+    if n > 0
+        x̄ = fm / n  # Emprical mean
+        S = sm - (n * x̄ * x̄')  # Centered second moment
+        Λ = ((Ψ + S) + (Ψ + S)') / 2  # Inverse Wishart posterior
 
-    x̄ = fm / n  # Emprical mean
-    S = sm - (n * x̄ * x̄')  # Centered second moment
-    Λ = ((Ψ + S) + (Ψ + S)') / 2  # Inverse Wishart posterior
+        Σ = rand(InverseWishart(ν + n, Matrix(Λ)))
 
-    Σ = rand(InverseWishart(ν + n, Matrix(Λ)))
+        cluster.sampled_amplitude = rand(posterior(n, A0))
+        cluster.sampled_position = SVector{N}(rand(MultivariateNormal(x̄, Σ / n)))
+        cluster.sampled_covariance = SMatrix{N, N}(Σ)
 
-    cluster.sampled_amplitude = rand(posterior(n, A0))
-    cluster.sampled_position = SVector{N}(rand(MultivariateNormal(x̄, Σ / n)))
-    cluster.sampled_covariance = SMatrix{N, N}(Σ)
+    else  # n == 0
+
+        cluster.sampled_amplitude = rand(posterior(n, A0))
+        cluster.sampled_position = SVector{N}(rand(N) .* bounds(model))
+        cluster.sampled_covariance = SMatrix{N, N}(rand(InverseWishart(priors.covariance_df, priors.covariance_scale)))
+        
+    end
 end
 
 function gibbs_sample_globals!(

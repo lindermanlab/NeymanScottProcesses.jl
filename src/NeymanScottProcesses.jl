@@ -49,7 +49,7 @@ export RateGamma, InverseGamma, NormalInvChisq, ScaledInvChiseq, SymmetricDirich
 # Sampling and inference
 export sample, log_prior, log_p_latents
 export create_random_mask, split_data_by_mask, sample_masked_data
-export GibbsSampler, Annealer, MaskedSampler
+export GibbsSampler, Annealer, MaskedSampler, ReversibleJumpSampler
 
 # Helper functions
 export cooccupancy_matrix
@@ -82,6 +82,7 @@ include("samplers/base.jl")
 include("samplers/gibbs.jl")
 include("samplers/anneal.jl")
 include("samplers/mask.jl")
+include("samplers/rjmcmc.jl")
 
 # Models
 include("models/gaussian.jl")

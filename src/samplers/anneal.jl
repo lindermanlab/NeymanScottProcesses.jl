@@ -62,6 +62,8 @@ function (S::Annealer)(
         new_results = subsampler(model, data; initial_assignments=assignments)
         assignments = last(new_results.assignments)
         append_results!(results, new_results, S)
+
+        verbose && println("Log like: $(results.log_p[end])\n")
     end
 
     return results
