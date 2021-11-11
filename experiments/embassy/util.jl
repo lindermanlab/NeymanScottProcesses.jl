@@ -1,5 +1,8 @@
+using Pkg; Pkg.activate(@__DIR__); Pkg.instantiate()
+
 using DataFrames
 using Dates
+using Distributions
 using NeymanScottProcesses
 using Random
 using SparseArrays
@@ -29,20 +32,23 @@ DATASET_START_DATE = Date(1973, 1, 1)
 DATASET_STOP_DATE = Date(1978, 12, 31)
 BICENTENNIAL_DATE = Date(1976, 7, 4)
 
+DATADIR = joinpath(@__DIR__, "raw/")
+RESULTSDIR = joinpath(@__DIR__, "results/")
 
 
+include("config.jl")
 
 
 # ===
 # MAIN SCRIPT
 # ===
 
-function load_train_save(datadir, config)
+function load_train_save(config, datadir=DATADIR, resultsdir=RESULTSDIR)
     C = config
 
     # Parse dataset parameters
-    max_date = C[:max_date]
-    min_date = C[:min_date]
+    max_date = get_dateid(C[:max_date])
+    min_date = get_dateid(C[:min_date])
     vocab_cutoff = C[:vocab_cutoff]
 
     @assert max_date > min_date
@@ -122,7 +128,7 @@ function cables_annealer(priors::CablesPriors, T, max_temp)
     return priors
 end
 
-function load_results(datadir, config)
+function load_results(config, datadir=DATADIR)
     # Load results
     results_path = config[:results_path]
     r = JLD.load(joinpath(datadir, "results", results_path))
@@ -153,7 +159,7 @@ get_dateid(date::Date, reference::Date=DATASET_START_DATE) =
 get_date(dateid::Real, reference::Date=DATASET_START_DATE) =
     reference + Day(dateid)
 
-function load_cables_metadata(datadir)
+function load_cables_metadata(datadir=DATADIR)
     vocab = DataFrame(CSV.File(joinpath(datadir, VOCAB_LABEL_FILE), header=[:word])) 
     embassies = DataFrame(CSV.File(joinpath(datadir, ENTITY_LABEL_FILE), header=[:embassy]))
 
