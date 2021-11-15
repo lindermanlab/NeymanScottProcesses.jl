@@ -18,5 +18,4 @@ CONFIG = Dict(
     :save_interval => 1,
     :temps => exp10.(vcat(range(6.0, 0.0, length=5))),
     #exp10.(vcat(range(6.0, 0, length=20), fill(0.0, 3))),
-    :results_path => "bicentennial_month_run1_dp_strong.jld",
 )

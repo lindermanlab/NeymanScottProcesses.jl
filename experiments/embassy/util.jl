@@ -37,13 +37,14 @@ RESULTSDIR = joinpath(@__DIR__, "results/")
 
 
 include("config.jl")
+include("baseline.jl")
 
 
 # ===
 # MAIN SCRIPT
 # ===
 
-function load_train_save(config, datadir=DATADIR, resultsdir=RESULTSDIR)
+function load_train_save(config, resultspath, datadir=DATADIR, resultsdir=RESULTSDIR)
     C = config
 
     # Parse dataset parameters
@@ -84,7 +85,6 @@ function load_train_save(config, datadir=DATADIR, resultsdir=RESULTSDIR)
     masks_per_anneal = C[:masks_per_anneal]
     save_interval = C[:save_interval]
     temps = C[:temps]
-    results_path = C[:results_path]
 
     # Construct model
     Random.seed!(seed)
@@ -112,7 +112,7 @@ function load_train_save(config, datadir=DATADIR, resultsdir=RESULTSDIR)
     @time results = sampler(model, unmasked_data)
 
     # Save results
-    f = joinpath(datadir, "results", results_path)
+    f = joinpath(resultsdir, resultspath)
     JLD.@save f config results model
 
     return results, model
@@ -128,15 +128,14 @@ function cables_annealer(priors::CablesPriors, T, max_temp)
     return priors
 end
 
-function load_results(config, datadir=DATADIR)
+function load_results(config, resultspath, datadir=DATADIR)
     # Load results
-    results_path = config[:results_path]
-    r = JLD.load(joinpath(datadir, "results", results_path))
+    r = JLD.load(joinpath(RESULTSDIR, resultspath))
 
-    config = r["config"]
+    # config = r["config"]
 
     min_date, max_date, vocab_cutoff = 
-        config[:min_date], config[:max_date], config[:vocab_cutoff]
+        get_dateid(config[:min_date]), get_dateid(config[:max_date]), config[:vocab_cutoff]
 
     # Load data
     data, embassy_dim, word_dim = 
@@ -258,10 +257,15 @@ function construct_cables(datadir, min_date, max_date, vocab_cutoff; min_words=3
 
     # Load data
     docs, dates, embassies, doc_word_mat = load_input_data(datadir)
-    word_distr = load_empirical_word_distribution(datadir)
+    word_distr = SparseMatrixCSC(load_empirical_word_distribution(datadir))
+
+    doc_word_mat = SparseMatrixCSC(
+        doc_word_mat.m, doc_word_mat.n, 
+        doc_word_mat.colptr, doc_word_mat.rowval, doc_word_mat.nzval
+    )
 
     # Truncate vocabulary if needed
-    truncate_vocab!(doc_word_mat, word_distr, vocab_cutoff)
+    truncate_vocab!(doc_word_mat, SparseMatrixCSC(word_distr), vocab_cutoff)
 
     # Filter nodes by date
     docs, dates, embassies, doc_word_mat = 
@@ -282,6 +286,7 @@ end
 function truncate_vocab!(doc_word_mat, word_distr, vocab_cutoff)
     word_counts = sum(word_distr, dims=2)[:, 1]
     top_words = sortperm(word_counts, rev=true)[1:vocab_cutoff]
+
     
     doc_word_mat[top_words, :] .= 0
     word_distr[top_words, :] .= 0
