@@ -70,10 +70,10 @@ md"""
 """
 
 # ╔═╡ ede2163c-4464-496b-a31e-0f211c8186d0
-gibbs_sampler = GibbsSampler(num_samples=100, save_interval=1, verbose=false, num_split_merge=10);
+gibbs_sampler = GibbsSampler(num_samples=100, save_interval=1, verbose=false, num_split_merge=1);
 
 # ╔═╡ 3b815b66-d78c-4c57-9054-d8f65ef48633
-temps = exp10.([range(4, 0, length=10); zeros(5)]);
+temps = exp10.(zeros(10))  #exp10.([range(4, 0, length=10); zeros(10)]);
 
 # ╔═╡ 22f1aa9b-0b10-4c79-a41f-b7f2898441cd
 anneal = s -> Annealer(false, temps, :cluster_amplitude_var, s)
@@ -83,6 +83,7 @@ annealed_gibbs_sampler = anneal(gibbs_sampler)
 
 # ╔═╡ 65f36acc-e0cf-41e8-a5f7-7d0d300e457c
 begin
+	Random.seed!(1)
 	model = GaussianNeymanScottModel(bounds, priors)
 	@time results = annealed_gibbs_sampler(model, data)
 	println(NeymanScottProcesses.log_like(model, data) / length(data))
