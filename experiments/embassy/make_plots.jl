@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.16.4
+# v0.17.2
 
 using Markdown
 using InteractiveUtils
@@ -95,28 +95,6 @@ get_timebin(t) = max(1, ceil(Int, t / bin_size))
 # ╔═╡ 8c045873-bba5-4842-bbe6-2b6b466a1b53
 t = 0 : 0.01 : (max_time - 1)
 
-# ╔═╡ 3768c42c-8deb-4fc1-a76b-44e63f533d17
-function plot_base_intensity(k_highlighted; kwargs...)	
-	plot()
-	for k in push!(collect(1:num_bins), k_highlighted)
-		Ak = (get_timebin.(t) .== k)
-		color = (k == k_highlighted) ? :blue : :lightgray
-		
-		plot!(t, Ak .* base_amplitudes[k], c=color, lw=4)
-	end
-	
-	return plot!(
-		ylim=(0.1, maximum(base_amplitudes)+1000), 
-		xlim=(minimum(t), maximum(t)),
-		frame=:box,
-		ticks=nothing,
-		kwargs...
-	)
-end
-
-# ╔═╡ d9d7da1d-8c29-4473-94e2-a83b60b10db1
-base_intensity_plots = plot_base_intensity.(1:num_bins)
-
 # ╔═╡ 01157707-9ff9-4610-8131-0471d9a44a0a
 md"""
 ### Neyman-Scott
@@ -134,6 +112,31 @@ cluster_intensity(C) = t -> C.sampled_amplitude * pdf(Normal(C.sampled_position,
 # ╔═╡ f1a2057e-2cb6-47d8-bd6f-a626af7d0321
 num_clusters = length(λ)
 
+# ╔═╡ 69edfdf0-077a-442b-91d5-40d51774d943
+LINEWIDTH = 3
+
+# ╔═╡ 3768c42c-8deb-4fc1-a76b-44e63f533d17
+function plot_base_intensity(k_highlighted; kwargs...)	
+	plot()
+	for k in push!(collect(1:num_bins), k_highlighted)
+		Ak = (get_timebin.(t) .== k)
+		color = (k == k_highlighted) ? :blue : :lightgray
+		
+		plot!(t, Ak .* base_amplitudes[k], c=color, lw=LINEWIDTH)
+	end
+	
+	return plot!(
+		ylim=(0.1, maximum(base_amplitudes)+1000), 
+		xlim=(minimum(t), maximum(t)),
+		frame=:box,
+		ticks=nothing,
+		kwargs...
+	)
+end
+
+# ╔═╡ d9d7da1d-8c29-4473-94e2-a83b60b10db1
+base_intensity_plots = plot_base_intensity.(1:num_bins)
+
 # ╔═╡ 19fa4c42-d92a-4e65-86cf-f68642c1eb5a
 function plot_nsp_intensity(k_highlighted; kwargs...)
 	λmax = 100 + maximum([maximum(λi.(t)) for λi in λ])
@@ -141,9 +144,9 @@ function plot_nsp_intensity(k_highlighted; kwargs...)
 	
  	plot()
  	for λi in λ
- 		plot!(t, λi.(t), lw=4, c=:lightgray)
+ 		plot!(t, λi.(t), lw=LINEWIDTH, c=:lightgray)
  	end
-	plot!(t, λ[k_highlighted].(t), lw=4, c=:blue)
+	plot!(t, λ[k_highlighted].(t), lw=LINEWIDTH, c=:blue)
 	
 	return plot!(
 		ylim=(0.1, λmax), 
@@ -225,28 +228,58 @@ findall(x -> x.embassy == "STATE", eachrow(meta.embassies))
 # ╔═╡ e6721d4f-d746-4885-9a25-28995d938efa
 Dϵ[184]
 
+# ╔═╡ af716196-b8ec-4f8a-bd81-fb78b61be721
+ENTEBBE_WORDS = Set(["ENTEBBE", "UGANDA", "HIJACKING", "PLO", "HOSTAGES"])
+
+# ╔═╡ e6445104-e533-4967-bca8-c5674aa3f490
+BICEN_WORDS = Set(["BICENTENNIAL", "TH ANNIVERSARY", "CONGRATULATIONS", "CENTURY", "AMERICAN PEOPLE"])
+
+# ╔═╡ 504f4121-c295-4cb4-9b90-5545533a09d9
+BOLD_WORDS = union(ENTEBBE_WORDS, BICEN_WORDS)
+
 # ╔═╡ d876cfc9-aba8-4372-a9a2-1c435e1a7257
 function plot_words(words)
 	plot()
-	
-	words = text(join(words, "\n"), 6, "times bold", :left)
-	annotate!(0.05, 0.5, words)
-	return plot!(frame=:box, xticks=nothing, yticks=nothing, bgcolour_inside=:lightblue, size=(250, 300))
+
+	for (i, w) in enumerate(words)
+		font = w in BOLD_WORDS ? "times bold" : "times"
+		
+		color = :Black
+		w in ENTEBBE_WORDS && (color = :Red)
+		w in BICEN_WORDS && (color = :ForestGreen)
+		
+		annotate!(0.05, 1.04- 0.065*i, text(w, font, 6, :left, color, :top))
+	end
+	#words = text(join(words, "\n"), 6, "times", :left)
+	#annotate!(0.05, 0.5, words)
+	return plot!(
+		frame=:box, 
+		xticks=nothing, yticks=nothing, 
+		bgcolour_inside=:WhiteSmoke,  
+		size=(200, 0.8*200)
+	)
 end
 
 # ╔═╡ de03c4a3-ec58-46b3-9c34-12f729d0f89c
-nsp_word_plots = [plot_words(nsp_get_top_k_words(i, 20)) for i in 1:num_clusters]
+nsp_word_plots = [plot_words(nsp_get_top_k_words(i, 15)) for i in 1:num_clusters]
 
 # ╔═╡ 31e14f3c-b2c6-4d5a-b340-087d7c139a06
-base_word_plots = [plot_words(baseline_get_top_k_words(i, 20)) for i in 1:num_bins]
+base_word_plots = [plot_words(baseline_get_top_k_words(i, 15)) for i in 1:num_bins]
 
 # ╔═╡ 7a645f38-8046-4a2a-b075-dedd6bcfdaf3
 md"""
 ## Figure 1C: Put it all together
 """
 
+# ╔═╡ 4637b901-c112-4d13-91c9-0810906cfdd5
+sortperm([C.sampled_amplitude for C in nsp_clusters], rev=true)
+# Entebbe = 2, bicentennial = 1
+
+# ╔═╡ 4a41a034-1822-41fb-8f5a-b450aa649479
+sortperm([C.sampled_position for C in nsp_clusters])
+
 # ╔═╡ e25fe7e2-a574-4623-b36b-6c9b79ca6d9a
-best_nsp = [1; 2; sortperm(nsp_clusters, by=C->C.sampled_amplitude, rev=true)[1:2]]
+best_nsp = [4; 1; 2; 3]
 
 # ╔═╡ db5723a1-3077-4073-8913-ed62aeca520b
 plt_nsp = let
@@ -254,7 +287,7 @@ plt_nsp = let
 	words = plot(nsp_word_plots[best_nsp]..., layout=(1, 4))
 	
 	l = @layout [a{0.1h}; b]
-	plot(amplitudes, words, layout=l, size=(600, 275))
+	plot(amplitudes, words, layout=l, size=(600, 225))
 end
 
 # ╔═╡ e52847bd-81c1-4b61-971c-223929ed3bea
@@ -263,14 +296,20 @@ plt_base = let
 	words = plot(base_word_plots..., layout=(1, num_bins))
 	
 	l = @layout [a{0.1h}; b]
-	plot(amplitudes, words, layout=l, size=(600, 275))
+	plot(amplitudes, words, layout=l, size=(600, 225))
 end
 
 # ╔═╡ f8bf18fb-f444-4234-a0bc-471318391879
-plt_docs = plot(plt_nsp, plt_base, size=(600, 550), layout=(2, 1))
+plt_docs = plot(plt_nsp, plt_base, size=(600, 450), layout=(2, 1))
 
 # ╔═╡ ce1f0a38-e8cb-45b4-bc15-c9b2c5a06afd
 savefig(plt_docs, "../../figures/document_model.pdf")
+
+# ╔═╡ f7f93a79-1b7a-418c-a64d-bbf49e742189
+savefig(plt_nsp, "../../figures/document_model_nsp.pdf")
+
+# ╔═╡ 429651bf-0cc2-4215-abfd-c77d596f3ca6
+savefig(plt_base, "../../figures/document_model_base.pdf")
 
 # ╔═╡ e867cc3f-c496-438b-976f-65a8e42409e6
 md"""
@@ -319,6 +358,7 @@ md"""
 # ╠═78e483ff-058b-48c0-9da7-2def7e74dbde
 # ╠═6fca003b-d0f9-4d13-873c-68f4c74add38
 # ╠═f1a2057e-2cb6-47d8-bd6f-a626af7d0321
+# ╠═69edfdf0-077a-442b-91d5-40d51774d943
 # ╠═19fa4c42-d92a-4e65-86cf-f68642c1eb5a
 # ╠═e54f802e-fda9-4843-8321-a4a1fdc52d3c
 # ╟─3e054434-e7ce-4e95-aea7-0229ba192dd7
@@ -330,15 +370,22 @@ md"""
 # ╠═13d1fc9e-fff3-40ff-a6ba-b5d60d48016e
 # ╠═bb743a40-e9a0-4c22-a54e-44dc4631afb0
 # ╠═e6721d4f-d746-4885-9a25-28995d938efa
+# ╠═af716196-b8ec-4f8a-bd81-fb78b61be721
+# ╠═e6445104-e533-4967-bca8-c5674aa3f490
+# ╠═504f4121-c295-4cb4-9b90-5545533a09d9
 # ╠═d876cfc9-aba8-4372-a9a2-1c435e1a7257
 # ╠═de03c4a3-ec58-46b3-9c34-12f729d0f89c
 # ╠═31e14f3c-b2c6-4d5a-b340-087d7c139a06
 # ╟─7a645f38-8046-4a2a-b075-dedd6bcfdaf3
+# ╠═4637b901-c112-4d13-91c9-0810906cfdd5
+# ╠═4a41a034-1822-41fb-8f5a-b450aa649479
 # ╠═e25fe7e2-a574-4623-b36b-6c9b79ca6d9a
 # ╠═db5723a1-3077-4073-8913-ed62aeca520b
 # ╠═e52847bd-81c1-4b61-971c-223929ed3bea
 # ╠═f8bf18fb-f444-4234-a0bc-471318391879
 # ╠═ce1f0a38-e8cb-45b4-bc15-c9b2c5a06afd
+# ╠═f7f93a79-1b7a-418c-a64d-bbf49e742189
+# ╠═429651bf-0cc2-4215-abfd-c77d596f3ca6
 # ╟─e867cc3f-c496-438b-976f-65a8e42409e6
 # ╠═2c156069-8db4-46c4-88e5-d2882a1d1d13
 # ╟─ef1ba9b5-af6d-4006-bf0d-38de232acdfd

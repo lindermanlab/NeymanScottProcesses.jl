@@ -34,6 +34,7 @@ using StatsFuns: softmax!, softmax, logaddexp, logsumexp, normlogpdf, normpdf
 using Distributions: Categorical, Chisq, Normal, Poisson, TDist
 using Distributions: Dirichlet, MultivariateNormal, InverseWishart
 using Distributions: DirichletMultinomial, Multinomial
+using Distributions: NegativeBinomial
 
 
 
@@ -83,6 +84,7 @@ include("samplers/gibbs.jl")
 include("samplers/anneal.jl")
 include("samplers/mask.jl")
 include("samplers/rjmcmc.jl")
+include("samplers/split_merge.jl")
 
 # Models
 include("models/gaussian.jl")

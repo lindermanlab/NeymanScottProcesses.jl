@@ -1,17 +1,9 @@
-struct GibbsSampler <: AbstractSampler
-    verbose::Bool
-    save_interval::Int
-    save_keys::Union{Symbol, Tuple{Vararg{Symbol}}}
-    num_samples::Int
-end
-
-function GibbsSampler(
-    ; verbose=true, 
-    save_interval=1, 
-    save_keys=(:log_p, :assignments, :clusters, :globals), 
-    num_samples=100
-)
-    return GibbsSampler(verbose, save_interval, save_keys, num_samples)
+Base.@kwdef struct GibbsSampler <: AbstractSampler
+    verbose::Bool = true
+    save_interval::Int = 1
+    save_keys::Union{Symbol, Tuple{Vararg{Symbol}}} = (:log_p, :assignments, :clusters, :globals)
+    num_samples::Int = 100
+    num_split_merge::Int = 0
 end
 
 function (S::GibbsSampler)(
@@ -51,7 +43,11 @@ function (S::GibbsSampler)(
 
             # Sample a new assignment for i-th datapoint.
             assignments[i] = gibbs_sample_assignment!(model, data[i])
+        end
 
+        # Propose a split-merge move
+        for _ in 1:S.num_split_merge
+            split_merge!(model, data, assignments; verbose=S.verbose)
         end
 
         # Update cluster parameters.

@@ -7,6 +7,7 @@ Base.@kwdef struct ReversibleJumpSampler <: AbstractSampler
     num_samples::Int = 100
     birth_prob::Union{Real, Function} = 0.5
     birth_proposal::Symbol = :uniform
+    num_split_merge::Int = 0
 end
 
 function get_birth_prob(S::ReversibleJumpSampler, s::Int)
@@ -44,10 +45,7 @@ function (S::ReversibleJumpSampler)(
         birth_death!(model, data; 
             birth_prob=get_birth_prob(S, s), proposal=S.birth_proposal)
 
-        # [2] Propose a split-merge move
-        split_merge!(model)
-        
-        # [3] Sample parent assignments.        
+        # [2] Sample parent assignments.        
         for i in data_order
             # Remove i-th datapoint from its current cluster.
             if assignments[i] != -1
@@ -60,8 +58,12 @@ function (S::ReversibleJumpSampler)(
             assignments[i] = gibbs_conditional_sample_assignment!(model, data[i])
         end
 
-        # [4] Update cluster parameters and global variables.
+        # [3] Propose a split-merge move
+        for _ in 1:S.num_split_merge
+            split_merge!(model, data, assignments)
+        end
 
+        # [4] Update cluster parameters and global variables.
         # Cluster parameters
         for cluster in clusters(model)
             gibbs_sample_cluster_params!(cluster, model)
@@ -132,10 +134,6 @@ function gibbs_conditional_sample_assignment!(model::NeymanScottModel, x::Abstra
     end
 end
 
-function split_merge!(model::NeymanScottModel)
-    return 0
-end
-
 function get_empty_clusters(model::NeymanScottModel)
     Cs = clusters(model)
     return [k for k in Cs.indices if Cs[k].datapoint_count == 0]
@@ -165,7 +163,8 @@ function birth_death!(
 
         # Make proposal
         k_new = add_cluster!(clusters(model))
-        C_new = clusters(model)[k_new]
+        C_new = clusters(model)[k_new]  # <-- ERROR?
+
         gibbs_sample_cluster_params!(C_new, model)
         if proposal == :datapoint
             x = rand(data)
@@ -202,7 +201,10 @@ function birth_death!(
         elseif proposal == :datapoint
             position_logp = -Inf
             for x in data
-                position_logp = logaddexp(position_logp, -log(length(data)) + logpdf(ℙ_x, C_new.sampled_position - x.position))
+                position_logp = logaddexp(
+                    position_logp, 
+                    -log(length(data)) + logpdf(ℙ_x, C_new.sampled_position - x.position)
+                )
             end
             log_q_birth += position_logp
         else
@@ -258,7 +260,10 @@ function birth_death!(
         elseif proposal == :datapoint
             position_logp = -Inf
             for x in data
-                position_logp = logaddexp(position_logp, -log(length(data)) + logpdf(ℙ_x, C_death.sampled_position - x.position))
+                position_logp = logaddexp(
+                    position_logp, 
+                    -log(length(data)) + logpdf(ℙ_x, C_death.sampled_position - x.position)
+                )
             end
             log_q_birth += position_logp
         else
