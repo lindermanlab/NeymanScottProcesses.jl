@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.19.9
+# v0.19.14
 
 using Markdown
 using InteractiveUtils
@@ -182,8 +182,8 @@ end
 
 # ╔═╡ 270448bf-3eea-4ce6-87f5-f986d2e05057
 let
-	plt = plot()
-	[plot!(num_clusters(r_nsp[k])) for k in 1:3]
+	plt = plot(size=(400, 200))
+	[plot!(num_clusters(r_nsp[k]), lw=2) for k in 1:3]
 	hline!([true_num_clusters], c=:Black, lw=2, label="True")
 	plt
 end
@@ -369,69 +369,6 @@ md"""
 ## DPM
 """
 
-# ╔═╡ 52a0caa9-ca84-401b-bddf-c3398ffa9bf4
-# ╠═╡ disabled = true
-#=╠═╡
-begin
-	Random.seed!(4)
-	
-	scaling = 1e6
-	
-	# Reset priors 
-	dpm_Ak = RateGamma(Ak.α / scaling, Ak.β)
-	dpm_η = η * scaling
-	dpm_priors = GaussianPriors(dpm_η, dpm_Ak, A0, Ψ, ν)
-	
-	dpm_model = []
-	r_dpm = []
-	
-	t_dpm = @elapsed for chain in 1:num_chains
-		model = GaussianNeymanScottModel(bounds, dpm_priors)
-		r = sampler(model, data)
-		
-		push!(dpm_model, model)
-		push!(r_dpm, r)
-	end
-	
-	"Fit $num_chains models in $t_dpm seconds"
-end
-  ╠═╡ =#
-
-# ╔═╡ 53229684-46ec-49ac-9c03-78bcaa636165
-#=╠═╡
-begin
-	plt_ll = plot(
-		size=(200, 200), 
-		legend=:bottomright, 
-		title="log probability",
-		xlabel="sample",
-	)
-	plot!([r.log_p for r in r_nsp], lw=0.5, label=["nsp" "" ""], color=4, alpha=0.75)
-	plot!([r.log_p for r in r_dpm], lw=0.5, label=["dpm" "" ""], color=5, alpha=0.75)
-	
-	save_and_show(plt_ll, "log_prob")
-end
-  ╠═╡ =#
-
-# ╔═╡ 17406fcc-ff2e-4fef-a552-06063ec70872
-#=╠═╡
-begin
-	plt_fit_data_dpm = make_data_plot()
-	plot_clusters!(plt_fit_data_dpm, dpm_model[1].clusters)
-	plot!(plt_fit_data_dpm, title="Learned (DPM)")
-
-	
-	#dpm_ω = make_consistent(r_dpm[1].assignments[end], data_x)
-	#scatter!(data_x, data_y, c=dpm_ω, title="fit with dpm")
-	
-	# Plot data and fits together
-	plt_data = plot(plt_true_data, plt_fit_data_nsp, plt_fit_data_dpm, layout=(1, 3))
-	plot!(size=(600, 200))
-	
-	save_and_show(plt_data, "data")
-end
-  ╠═╡ =#
-
 # ╔═╡ 77f2fb41-c0bc-4aac-a98d-0048c7b2a8b0
 md"""
 ## Compare summary statistics
@@ -444,131 +381,10 @@ begin
 	num_samples = 1000
 end;
 
-# ╔═╡ e571a594-4a6e-4dd5-8762-f7330b3707ce
-#=╠═╡
-begin
-	Random.seed!(11)
-	
-	subsample = rand(1:num_samples, 200)
-	
-	# Set up plot
-	plt_num_clusters = plot(ylabel="Number of Clusters")
-	plot!(xticks=(1:2, ["NSP", "DPM"]))
-	plot!(size=(200, 200))
-	plot!(ylim=(0, Inf))
-	plot!(legend=:topleft)
-
-	
-	# Plot true number of clusters
-	hline!(0.5:0.01:2.5, [true_num_clusters], lw=3, color=:Black, label="True")
-	
-		
-	# Plot violin plots for NSP and DPM
-	for (ind, r) in enumerate([r_nsp, r_dpm])
-		num_cluster = append!([[
-			length(unique(ω)) - 1 for ω in r[chain].assignments[end-num_samples+1:end]
-		] for chain in 1:num_chains]...)
-
-		num_clus_x = fill(ind, num_chains*num_samples)
-		
-		violin!(num_clus_x, num_cluster, color=1)
-		boxplot!(num_clus_x, num_cluster, fillalpha=0.5, color=2,  outliers=false)
-		dotplot!(num_clus_x[subsample], num_cluster[subsample], marker=(:Gray, 1))
-	end	
-	
-	# Save
-	save_and_show(plt_num_clusters, "num_clusters")
-end
-  ╠═╡ =#
-
-# ╔═╡ f3ae22fc-0bb6-4469-ac9d-2bc32252c1a3
-#=╠═╡
-begin
-	cm_true = cooccupancy_matrix(assignments)
-	cm_nsp = cooccupancy_matrix(r_nsp[1].assignments[end-num_samples+1:end])
-	cm_dpm = cooccupancy_matrix(r_dpm[1].assignments[end-num_samples+1:end])
-
-	plot(
-		heatmap(cm_true, title="true", ticks=nothing), 
-		heatmap(cm_nsp, title="nsp", ticks=nothing),
-		heatmap(cm_dpm, title="dpm", ticks=nothing),
-		layout=(1, 3),
-		size=(650, 200)
-	)
-end
-  ╠═╡ =#
-
-# ╔═╡ cd0c0109-0dee-4da8-b9c0-282ec378bf63
-#=╠═╡
-begin
-	Random.seed!(11)
-	
-	# Set up plot
-	plt_acc = plot(ylabel="Co-occupancy", xticks=(1:2, ["NSP", "DPM"]))
-	plot!(size=(200, 200))
-
-	# Plot violin plots for NSP and DPM
-	for (ind, r) in enumerate([r_nsp, r_dpm])
-		acc = append!([[
-			1 - sum(abs, cm_true - cooccupancy_matrix(ω)) / length(cm_true)
-			for ω in r[chain].assignments[end-num_samples+1:end]
-		] for chain in 1:num_chains]...)
-
-		acc_x = fill(ind, num_chains*num_samples)
-		
-		violin!(acc_x, acc, color=1)
-		boxplot!(acc_x, acc, fillalpha=0.5, color=2,  outliers=false)
-		dotplot!(acc_x[subsample], acc[subsample], marker=(:Gray, 1))
-	end	
-	
-	# # Plot data
-	# violin!(acc_x, acc_y)
-	# boxplot!(acc_x, acc_y, fillalpha=0.5, outliers=false)
-	# dotplot!(acc_x[subsample], acc_y[subsample], marker=(:Gray, 1))
-	
-	save_and_show(plt_acc, "accuracy")
-end
-  ╠═╡ =#
-
 # ╔═╡ 3e429d3a-1d3e-48ff-b5aa-37e1bb0ec65c
 begin
 
 end
-
-# ╔═╡ efc4144b-3578-4c91-9575-04a8f98b6816
-#=╠═╡
-plt_top = plot(plt_true_data, plt_fit_data_nsp, plt_fit_data_dpm, layout=(1, 3), left_margin=28Plots.pt);
-  ╠═╡ =#
-
-# ╔═╡ 180fe189-7249-455d-8952-2e1dfc7159aa
-#=╠═╡
-plt_bot = plot(plt_cgbd_ll, plt_cgbd_nc, plt_acc, plt_num_clusters, layout=(1, 4));
-  ╠═╡ =#
-
-# ╔═╡ 4fb64ab7-b329-451c-b4ff-9ae80ff6ae59
-#=╠═╡
-begin
-	lay = @layout [a{0.5714h}; b]
-	plt_everything = plot(
-		plt_top, plt_bot,
-		layout=lay, size=(600, 350), dpi=150
-	)
-
-	make_label = f -> text(f, "Times Bold", 12, :right, :bottom)
-	
-	annotate!(plt_everything[1], -0.01, 1.0, make_label("A"))
-	annotate!(plt_everything[2], -0.01, 1.0, make_label("B"))
-	annotate!(plt_everything[3], -0.01, 1.0, make_label("C"))
-
-	annotate!(plt_everything[4], -600, 7.9, make_label("D"))
-	annotate!(plt_everything[5], -600, 16.2, make_label("E"))
-	annotate!(plt_everything[6], 0.49, 0.999, make_label("F"))
-	annotate!(plt_everything[7], 0.49, 50, make_label("G"))
-
-	
-	save_and_show(plt_everything, "full")
-end
-  ╠═╡ =#
 
 # ╔═╡ Cell order:
 # ╠═acc93e48-e012-11eb-048e-35c010d6acee
@@ -585,12 +401,12 @@ end
 # ╟─d98caa8b-0c20-4b41-b3e2-404061a6f575
 # ╠═60cf6826-5b63-4d0d-8ee9-1c78b6e5b5dc
 # ╟─5af966fc-cf8e-4a54-9eb3-c84c445ad6f0
-# ╟─f1e0e42f-c321-4969-b1cd-c0385fa73ae5
+# ╠═f1e0e42f-c321-4969-b1cd-c0385fa73ae5
 # ╠═6234628c-0274-4b23-9255-69e5f6878549
 # ╠═db0fa5a1-11f8-44fa-a17a-814c9ffcfcf8
 # ╠═058b8bb9-976a-4085-844c-1fa3fb5cb3a4
 # ╟─0a91fe9a-1f4e-4b10-beef-896d41fcadd3
-# ╟─270448bf-3eea-4ce6-87f5-f986d2e05057
+# ╠═270448bf-3eea-4ce6-87f5-f986d2e05057
 # ╟─1401a242-3e07-4d2d-be8b-ec5599868457
 # ╠═7560d033-9b51-4812-a857-19862b1767ec
 # ╟─a274e4f7-b8d7-4c8a-a730-70889b0126ba
@@ -616,15 +432,6 @@ end
 # ╠═4a008c9b-fbc4-407c-91cf-d5ca9e0a4662
 # ╠═69e40e4e-3c52-4c4a-a36d-ba6800d29bd7
 # ╟─65fbe8af-0c79-4710-a7a2-9b5b1b456a42
-# ╠═52a0caa9-ca84-401b-bddf-c3398ffa9bf4
-# ╠═53229684-46ec-49ac-9c03-78bcaa636165
-# ╠═17406fcc-ff2e-4fef-a552-06063ec70872
 # ╟─77f2fb41-c0bc-4aac-a98d-0048c7b2a8b0
 # ╠═e6901d7d-6f3f-493e-9d00-7524475c5ccb
-# ╠═e571a594-4a6e-4dd5-8762-f7330b3707ce
-# ╠═f3ae22fc-0bb6-4469-ac9d-2bc32252c1a3
-# ╠═cd0c0109-0dee-4da8-b9c0-282ec378bf63
 # ╠═3e429d3a-1d3e-48ff-b5aa-37e1bb0ec65c
-# ╠═efc4144b-3578-4c91-9575-04a8f98b6816
-# ╠═180fe189-7249-455d-8952-2e1dfc7159aa
-# ╠═4fb64ab7-b329-451c-b4ff-9ae80ff6ae59

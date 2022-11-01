@@ -78,6 +78,10 @@ include("core/interface.jl")  # Interface that models must implement
 include("core/cluster_list.jl")
 include("core/mask.jl")
 
+# Models
+include("models/gaussian.jl")
+include("models/cables.jl")
+
 # Samplers
 include("samplers/base.jl")
 include("samplers/gibbs.jl")
@@ -85,10 +89,6 @@ include("samplers/anneal.jl")
 include("samplers/mask.jl")
 include("samplers/rjmcmc.jl")
 include("samplers/split_merge.jl")
-
-# Models
-include("models/gaussian.jl")
-include("models/cables.jl")
 
 # Plotting and diagnostics
 include("diagnostic.jl")

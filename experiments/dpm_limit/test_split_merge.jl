@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.19.13
+# v0.19.14
 
 using Markdown
 using InteractiveUtils
@@ -13,6 +13,9 @@ begin
 	using Revise
 	using NeymanScottProcesses
 end
+
+# ╔═╡ e984833f-6c15-497e-ae88-8ecd6829ff3a
+using Profile
 
 # ╔═╡ b5c55535-c171-4e44-ba68-e79938ef70e1
 theme(
@@ -69,25 +72,36 @@ md"""
 ## Fit Model
 """
 
-# ╔═╡ ede2163c-4464-496b-a31e-0f211c8186d0
-gibbs_sampler = GibbsSampler(num_samples=100, save_interval=1, verbose=false, num_split_merge=1);
+# ╔═╡ 1a916952-6940-4a64-9e36-62a74e91e27e
+
 
 # ╔═╡ 3b815b66-d78c-4c57-9054-d8f65ef48633
-temps = exp10.(zeros(10))  #exp10.([range(4, 0, length=10); zeros(10)]);
+temps = exp10.([range(4, 0, length=5); zeros(15)])
+
+# ╔═╡ ede2163c-4464-496b-a31e-0f211c8186d0
+gibbs_sampler = GibbsSampler(num_samples=100, save_interval=1, verbose=false, num_split_merge=10);
 
 # ╔═╡ 22f1aa9b-0b10-4c79-a41f-b7f2898441cd
 anneal = s -> Annealer(false, temps, :cluster_amplitude_var, s)
 
 # ╔═╡ 8181909e-a6d8-40de-982b-cdd628c4abd6
-annealed_gibbs_sampler = anneal(gibbs_sampler)
+annealed_gibbs_sampler = anneal(gibbs_sampler);
 
 # ╔═╡ 65f36acc-e0cf-41e8-a5f7-7d0d300e457c
 begin
-	Random.seed!(1)
+	Random.seed!(5)
 	model = GaussianNeymanScottModel(bounds, priors)
 	@time results = annealed_gibbs_sampler(model, data)
-	println(NeymanScottProcesses.log_like(model, data) / length(data))
-end
+end;
+
+# ╔═╡ bf5f6554-0bd5-4d9e-a6c7-df17f6b8c425
+model.bounds
+
+# ╔═╡ 2c14cea8-3e6f-4eb4-b54c-362416302f23
+# begin
+# 	Profile.clear()
+# 	@profile annealed_gibbs_sampler(model, data)
+# end
 
 # ╔═╡ e8b75f9a-a4d6-4fe1-b9db-618d8a112a6f
 md"""
@@ -129,7 +143,7 @@ let
 	z = last(results.assignments)
 	fit_clusters = [model.clusters[k] for k in unique(z[z .!= -1])]
 
-	@show length(unique(z))
+	@show length(unique(z[z .!= -1]))
 	pltB = make_data_plot(data)
 	plot_clusters!(pltB, fit_clusters)
 	plot!(title="Fit (NSP)", size=(300, 300))
@@ -154,21 +168,25 @@ plot(
 # ╠═50f1ecc2-435c-11ed-216f-ffba4db8d631
 # ╠═b5c55535-c171-4e44-ba68-e79938ef70e1
 # ╟─7f3bf053-62e6-4183-b537-4d7b24cc50bb
+# ╟─65b5cea7-a338-4a5e-a8b6-e35de46b2bb1
 # ╠═f8874a43-f006-4480-a9f1-94b5a6875090
 # ╠═d8287c8d-f0a3-4d2c-83aa-cdca293985eb
 # ╠═12f14e36-da12-407a-92b8-33d8fdeb69c1
 # ╠═4eaf4c65-0247-47e6-be04-a24451d9ceba
 # ╟─0d3f0c40-0581-483e-9d08-9bbef9618d38
 # ╟─f7712587-1fa7-4a62-93ae-03efc1f488fe
-# ╠═ede2163c-4464-496b-a31e-0f211c8186d0
+# ╠═1a916952-6940-4a64-9e36-62a74e91e27e
+# ╠═bf5f6554-0bd5-4d9e-a6c7-df17f6b8c425
 # ╠═3b815b66-d78c-4c57-9054-d8f65ef48633
+# ╠═ede2163c-4464-496b-a31e-0f211c8186d0
 # ╠═22f1aa9b-0b10-4c79-a41f-b7f2898441cd
 # ╠═8181909e-a6d8-40de-982b-cdd628c4abd6
 # ╠═65f36acc-e0cf-41e8-a5f7-7d0d300e457c
-# ╠═7e091c40-301b-4dfb-bec5-773b7b5dd2ee
-# ╠═1e3a5cf5-9072-45c2-bb3b-46ffff01a926
-# ╟─65b5cea7-a338-4a5e-a8b6-e35de46b2bb1
+# ╟─7e091c40-301b-4dfb-bec5-773b7b5dd2ee
+# ╟─1e3a5cf5-9072-45c2-bb3b-46ffff01a926
+# ╠═e984833f-6c15-497e-ae88-8ecd6829ff3a
+# ╠═2c14cea8-3e6f-4eb4-b54c-362416302f23
 # ╟─e8b75f9a-a4d6-4fe1-b9db-618d8a112a6f
 # ╟─a6d05df3-67b3-47bb-b513-85cb921f5e83
 # ╟─2802010f-6b06-4eb0-ab36-beace589b687
-# ╠═d9607159-cc78-431b-9189-59ad706f6982
+# ╟─d9607159-cc78-431b-9189-59ad706f6982
