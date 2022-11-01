@@ -2,7 +2,7 @@ function split_merge!(
     model::NeymanScottModel, 
     data, 
     assignments;
-    verbose=true
+    verbose=false
 )
     window_size = model.max_cluster_radius
 

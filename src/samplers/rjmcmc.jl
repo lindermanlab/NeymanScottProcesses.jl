@@ -3,7 +3,7 @@ VALID_BIRTH_PROPOSALS = [:uniform, :datapoint]
 Base.@kwdef struct ReversibleJumpSampler <: AbstractSampler
     verbose::Bool = false
     save_interval::Int = 1
-    save_keys::Union{Symbol, Tuple{Vararg{Symbol}}} = (:log_p, :assignments, :clusters, :globals)
+    save_keys::Union{Symbol, Tuple{Vararg{Symbol}}} = (:log_p, :assignments, :clusters, :globals, :time)
     num_samples::Int = 100
     birth_prob::Union{Real, Function} = 0.5
     birth_proposal::Symbol = :uniform
@@ -60,7 +60,7 @@ function (S::ReversibleJumpSampler)(
 
         # [3] Propose a split-merge move
         for _ in 1:S.num_split_merge
-            split_merge!(model, data, assignments)
+            split_merge!(model, data, assignments; verbose=verbose)
         end
 
         # [4] Update cluster parameters and global variables.

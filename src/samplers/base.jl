@@ -20,7 +20,7 @@ And the following methods
 """
 abstract type AbstractSampler end
 
-valid_save_keys(::AbstractSampler) = (:log_p, :assignments, :clusters, :globals)
+valid_save_keys(::AbstractSampler) = (:log_p, :assignments, :clusters, :globals, :time)
 
 
 
@@ -72,6 +72,10 @@ function update_results!(results, model, assignments, data, S::AbstractSampler)
 
     if :globals in save_keys
         push!(results[:globals], deepcopy(get_globals(model)))
+    end
+
+    if :time in save_keys
+        push!(results[:time], Base.time())
     end
 
     return results

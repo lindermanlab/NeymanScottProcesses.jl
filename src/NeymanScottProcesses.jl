@@ -9,6 +9,7 @@ import Base.Iterators
 import Distributions
 
 import StatsBase: sample
+import Base: time
 
 
 
@@ -53,7 +54,7 @@ export create_random_mask, split_data_by_mask, sample_masked_data
 export GibbsSampler, Annealer, MaskedSampler, ReversibleJumpSampler
 
 # Helper functions
-export cooccupancy_matrix
+export cooccupancy_matrix, get_runtime
 
 # Models
 export GaussianNeymanScottModel, GaussianPriors, GaussianGlobals, GaussianCluster, RealObservation

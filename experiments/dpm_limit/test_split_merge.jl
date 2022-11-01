@@ -72,9 +72,6 @@ md"""
 ## Fit Model
 """
 
-# ╔═╡ 1a916952-6940-4a64-9e36-62a74e91e27e
-
-
 # ╔═╡ 3b815b66-d78c-4c57-9054-d8f65ef48633
 temps = exp10.([range(4, 0, length=5); zeros(15)])
 
@@ -159,7 +156,7 @@ get_num_clusters(r::NamedTuple) = [
 
 # ╔═╡ 7e091c40-301b-4dfb-bec5-773b7b5dd2ee
 plot(
-	plot(results.log_p), 
+	plot(get_runtime(results), results.log_p), 
 	hline!(plot(get_num_clusters(results)), [true_num_clusters]),
 	size=(600, 200),
 )
@@ -175,14 +172,13 @@ plot(
 # ╠═4eaf4c65-0247-47e6-be04-a24451d9ceba
 # ╟─0d3f0c40-0581-483e-9d08-9bbef9618d38
 # ╟─f7712587-1fa7-4a62-93ae-03efc1f488fe
-# ╠═1a916952-6940-4a64-9e36-62a74e91e27e
 # ╠═bf5f6554-0bd5-4d9e-a6c7-df17f6b8c425
 # ╠═3b815b66-d78c-4c57-9054-d8f65ef48633
 # ╠═ede2163c-4464-496b-a31e-0f211c8186d0
 # ╠═22f1aa9b-0b10-4c79-a41f-b7f2898441cd
 # ╠═8181909e-a6d8-40de-982b-cdd628c4abd6
 # ╠═65f36acc-e0cf-41e8-a5f7-7d0d300e457c
-# ╟─7e091c40-301b-4dfb-bec5-773b7b5dd2ee
+# ╠═7e091c40-301b-4dfb-bec5-773b7b5dd2ee
 # ╟─1e3a5cf5-9072-45c2-bb3b-46ffff01a926
 # ╠═e984833f-6c15-497e-ae88-8ecd6829ff3a
 # ╠═2c14cea8-3e6f-4eb4-b54c-362416302f23
