@@ -2,40 +2,22 @@ function split_merge!(
     model::NeymanScottModel, 
     data, 
     assignments;
+    num_gibbs=0,
     verbose=false
 )
-    window_size = model.max_cluster_radius
-
-    n = length(data)
-    K_old = num_clusters(model)
-
-    # Select two datapoints.
-    cluster_spikes = findall(assignments .!= -1)
-    if isempty(cluster_spikes)
-        return
+    if num_gibbs > 0
+        gibbs_split_merge!(model, data, assignments; num_gibbs=num_gibbs, verbose=verbose)
     end
-
-    i = rand(cluster_spikes)
-    xi, zi = data[i], assignments[i]
-
-    # The second datapoint should be within the sampling window
-    A = []
-    for j in 1:n
-        xj = data[j]
-        if (i != j) && (assignments[j] != -1) && (norm(position(xi) - position(xj)) < window_size)
-            push!(A, j)
-        end
-    end
+    
+    i, A = get_split_merge_candidate(model, data, assignments)
 
     # Quit early if there aren't any neighbors nearby
     if isempty(A)
         return
     end
-
     j = rand(A)
-    xj, zj = data[j], assignments[j]
 
-    if zi == zj
+    if assignments[i] == assignments[j]
         split_move!(i, j, model, data, assignments, verbose)
     else
         merge_move!(i, j, model, data, assignments, verbose)
@@ -44,8 +26,6 @@ end
 
 function merge_move!(i, j, model, data, assignments, verbose)
     zi, zj = assignments[i], assignments[j]
-    xi, xj = data[i], data[j]
-    K_old = num_clusters(model)
 
     # Compute probability of old partition
     Si = findall(==(zi), assignments)
@@ -83,8 +63,6 @@ end
 
 function split_move!(i, j, model, data, assignments, verbose)
     zi, zj = assignments[i], assignments[j]
-    xi, xj = data[i], data[j]
-    K_old = num_clusters(model)
 
     # Compute probability of old partition
     S_full = findall(==(zi), assignments)
@@ -126,6 +104,40 @@ end
 # ====
 # HELPERS
 # ====
+
+function get_split_merge_candidate(model, data, assignments)
+
+    window_size = model.max_cluster_radius
+
+    n = length(data)
+    K_old = num_clusters(model)
+
+    # Select two datapoints.
+    cluster_spikes = findall(assignments .!= -1)
+    if isempty(cluster_spikes)
+        return
+    end
+
+    i = rand(cluster_spikes)
+    xi, zi = data[i], assignments[i]
+
+    # The second datapoint should be within the sampling window
+    # A = []
+    # for j in 1:n
+    #     xj = data[j]
+    #     if (i != j) && (assignments[j] != -1) && (norm(position(xi) - position(xj)) < window_size)
+    #         push!(A, j)
+    #     end
+    # end
+    A = filter!(k -> is_viable_candidate(k, i, data, assignments, window_size), collect(1:n))
+
+    return i, A
+end
+
+function is_viable_candidate(k, i, data, assignments, window_size)
+    xi, xk = data[i], data[k]
+    return (k != i) && (assignments[k] != -1) && (norm(position(xi) - position(xk)) < window_size)
+end
 
 function sm_move_unnormalized_prior(n1, n2, model)
     (; α) = model.priors.cluster_amplitude

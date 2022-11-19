@@ -8,6 +8,8 @@ Base.@kwdef struct ReversibleJumpSampler <: AbstractSampler
     birth_prob::Union{Real, Function} = 0.5
     birth_proposal::Symbol = :uniform
     num_split_merge::Int = 0
+    split_merge_gibbs_moves::Int = 0
+    num_move::Int = 10
 end
 
 function get_birth_prob(S::ReversibleJumpSampler, s::Int)
@@ -41,7 +43,7 @@ function (S::ReversibleJumpSampler)(
 
     for s in 1:num_samples
         # [1] Propose a birth death move
-        for _ in 1:10
+        for _ in 1:S.num_move
             birth_death!(model, data; 
                 birth_prob=get_birth_prob(S, s), proposal=S.birth_proposal)
         end
@@ -69,7 +71,7 @@ function (S::ReversibleJumpSampler)(
         # [3] Propose a split-merge move
         # recompute_cluster_statistics_in_place!(model, clusters(model), data, assignments)
         for _ in 1:S.num_split_merge
-            split_merge!(model, data, assignments; verbose=verbose)
+            split_merge!(model, data, assignments; verbose=verbose, num_gibbs=S.split_merge_gibbs_moves)
         end
 
         # Cluster parameters

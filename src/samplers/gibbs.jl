@@ -4,6 +4,7 @@ Base.@kwdef struct GibbsSampler <: AbstractSampler
     save_keys::Union{Symbol, Tuple{Vararg{Symbol}}} = (:log_p, :assignments, :clusters, :globals, :time)
     num_samples::Int = 100
     num_split_merge::Int = 0
+    split_merge_gibbs_moves::Int = 0
 end
 
 function (S::GibbsSampler)(
@@ -47,7 +48,7 @@ function (S::GibbsSampler)(
 
         # Propose a split-merge move
         for _ in 1:S.num_split_merge
-            split_merge!(model, data, assignments; verbose=S.verbose)
+            split_merge!(model, data, assignments; verbose=S.verbose, num_gibbs=S.split_merge_gibbs_moves)
         end
 
         # Update cluster parameters.
