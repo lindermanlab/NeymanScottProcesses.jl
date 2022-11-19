@@ -90,6 +90,7 @@ include("samplers/anneal.jl")
 include("samplers/mask.jl")
 include("samplers/rjmcmc.jl")
 include("samplers/split_merge.jl")
+include("samplers/split_merge_gibbs.jl")
 
 # Plotting and diagnostics
 include("diagnostic.jl")

@@ -360,7 +360,7 @@ function log_posterior_predictive(
     return Z + _logstudent_t_unnormalized_pdf(μ, Σ, df, N, position(x))
 end
 
-function log_marginal_event(zi, S, model::GaussianNeymanScottModel, data, assignments)    
+function log_marginal_event(zi, S, model::GaussianNeymanScottModel, data, assignments)
     # Fancy way --- works exactly!
     # Remove one datapoint
     i = first(S)
@@ -378,6 +378,10 @@ end
 
 function gauss_log_marginal(zi, model, x=nothing, tol=1e-2)
     C = clusters(model)[zi]
+
+    if C.datapoint_count == 0
+        return 0.0
+    end
 
     d = length(C.first_moment)
     n = C.datapoint_count

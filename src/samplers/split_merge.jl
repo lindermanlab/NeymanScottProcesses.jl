@@ -8,7 +8,7 @@ function split_merge!(
     if num_gibbs > 0
         gibbs_split_merge!(model, data, assignments; num_gibbs=num_gibbs, verbose=verbose)
     end
-    
+
     i, A = get_split_merge_candidate(model, data, assignments)
 
     # Quit early if there aren't any neighbors nearby
@@ -121,14 +121,6 @@ function get_split_merge_candidate(model, data, assignments)
     i = rand(cluster_spikes)
     xi, zi = data[i], assignments[i]
 
-    # The second datapoint should be within the sampling window
-    # A = []
-    # for j in 1:n
-    #     xj = data[j]
-    #     if (i != j) && (assignments[j] != -1) && (norm(position(xi) - position(xj)) < window_size)
-    #         push!(A, j)
-    #     end
-    # end
     A = filter!(k -> is_viable_candidate(k, i, data, assignments, window_size), collect(1:n))
 
     return i, A
@@ -174,7 +166,8 @@ function split_randomly!(i, j, S, model, data, assignments)
         if rand() < 0.5
             push!(Si, k)
         else
-            assignments[k] = move_datapoint!(model, data[k], zi, zj)
+            remove_datapoint!(model, data[k], assignments[k])
+            assignments[k] = add_datapoint!(model, data[k], zj)
             push!(Sj, k)
         end
     end

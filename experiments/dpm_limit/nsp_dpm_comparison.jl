@@ -96,7 +96,7 @@ md"""
 # ╔═╡ 990a0e9f-2bb5-4cac-8de9-7fd68500a53e
 function fit_data(config)
 	# Unpack config
-    @unpack data_seed, cov_scale, model_seed, base_sampler_type, num_split_merge, max_temp = config
+    @unpack data_seed, cov_scale, model_seed, base_sampler_type, num_split_merge, max_temp, split_merge_gibbs_moves = config
 
 	# Load raw data
 	obs, _ = produce_or_load(
@@ -113,13 +113,15 @@ function fit_data(config)
 		sampler = GibbsSampler(
 			num_samples=100, 
 			num_split_merge=num_split_merge, 
-			save_interval=1, 
+			save_interval=1,
+			split_merge_gibbs_moves=split_merge_gibbs_moves,
 			verbose=false)
 	elseif base_sampler_type == "rj"
 		sampler = ReversibleJumpSampler(
 			num_samples=100, 
 			birth_prob=0.5,
-			num_split_merge=num_split_merge)
+			num_split_merge=num_split_merge, 
+			split_merge_gibbs_moves=split_merge_gibbs_moves)
 	else
 		error("Invalid sampler type")
 	end
@@ -154,6 +156,7 @@ base_config = Dict(
 	"num_split_merge" => [0, 10],
 	"base_sampler_type" => ["rj", "gibbs"],
 	"max_temp" => 0.0,
+	"split_merge_gibbs_moves" => [0, 2],
 )
 
 # ╔═╡ 8a9d96cb-3baf-433c-a8d4-4d8b83a753fd

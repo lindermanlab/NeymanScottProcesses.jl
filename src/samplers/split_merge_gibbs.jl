@@ -14,25 +14,25 @@ function gibbs_split_merge!(
     j = rand(A)
 
     # Store the initial state, so we can go back if needed
-    Si0, Sj0, log_prob_old = get_initial_split_move_state(i, j, assignments)
+    Si0, Sj0, log_prob_old = get_initial_split_merge_move_state(i, j, model, data, assignments)
     S_full = [Si0; Sj0]
 
     # Create launch state
     # We first partition the data into Si, Sj randomly
     # NOTE: This mutates both `model` and `assignments`
-    Si, Sj = create_launch_state!(i, j, S_full, model, data, assignments)
+    Si, Sj = create_launch_state!(i, j, S_full, model, data, assignments, num_gibbs)
 
     move = (i, j, Si, Sj, S_full)
     initial_state = (Si0, Sj0, log_prob_old)
  
-    if assignments[i] == assignments[j]
-        gibbs_split_move!(move, initial_state, data, assignments, verbose)
+    if length(Sj0) == 0
+        gibbs_split_move!(move, initial_state, model, data, assignments, verbose)
     else
-        gibbs_merge_move!(move, initial_state, data, assignments, verbose)
+        gibbs_merge_move!(move, initial_state, model, data, assignments, verbose)
     end
 end
 
-function gibbs_merge_move!(move, initial_state, data, assignments, verbose)
+function gibbs_merge_move!(move, initial_state, model, data, assignments, verbose)
     (i, j, Si, Sj, S_full) = move
     (Si0, Sj0, log_p_old) = initial_state
 
@@ -63,7 +63,7 @@ function gibbs_merge_move!(move, initial_state, data, assignments, verbose)
     end
 end
 
-function gibbs_split_move!(move, initial_state, data, assignments, verbose)
+function gibbs_split_move!(move, initial_state, model, data, assignments, verbose)
     (i, j, Si, Sj, S_full) = move
     (Si0, Sj0, log_p_old) = initial_state
 
@@ -71,8 +71,8 @@ function gibbs_split_move!(move, initial_state, data, assignments, verbose)
 
     # [A] Propose split state
     log_p_transition = restricted_gibbs!(i, j, S_full, model, data, assignments)
-    Si, Sj = filter(==(zi), assignments), filter(==(zj), assignments)
-    n1, n2 = length(S1), length(S2)
+    Si, Sj = findall(==(zi), assignments), findall(==(zj), assignments)
+    n1, n2 = length(Si), length(Sj)
 
     # [B] Compute acceptance probabibility
     # Proposal probability
@@ -131,13 +131,24 @@ function gibbs_transition_probability(i, j, Si, Sj, Si0, Sj0, model, data, assig
 
         if k in Si0
             # Assign to cluster zi
-            add_datapoint!(model, xk, zi)
-            log_p_transition += lop_p_c1
+            assignments[k] = add_datapoint!(model, xk, zi)
+            log_p_transition += log_p_c1
         else
             # Assign to cluster zj
-            add_datapoint!(model, xk, zj)
-            log_p_transition += lop_p_c2
+            assignments[k] = add_datapoint!(model, xk, zj)
+            log_p_transition += log_p_c2
         end
+    end
+
+    # Now move data back
+    for k in Iterators.flatten((Si, Sj))
+        if (k == i) || (k == j)
+            continue  # Skip this datapoint
+        end
+
+        zk = assignments[k]
+        z0 = (k in Si) ? zi : zj
+        assignments[k] = move_datapoint!(model, data[k], zk, z0)
     end
 
     return log_p_transition
@@ -174,23 +185,23 @@ function restricted_gibbs!(i, j, S_full, model, data, assignments)
 
         if log(rand()) <= log_p_c1
             # Assign to cluster zi
-            add_datapoint!(model, xk, zi)
-            log_p_transition += lop_p_c1
+            assignments[k] = add_datapoint!(model, xk, zi)
+            log_p_transition += log_p_c1
         else
             # Assign to cluster zj
-            add_datapoint!(model, xk, zj)
-            log_p_transition += lop_p_c2
+            assignments[k] = add_datapoint!(model, xk, zj)
+            log_p_transition += log_p_c2
         end
     end
 
     return log_p_transition
 end
 
-function create_launch_state!(i, j, S, model, data, assignments)
+function create_launch_state!(i, j, S, model, data, assignments, num_gibbs)
     zi, zj = assignments[i], assignments[j]
 
     # Create a new cluster if needed
-    if assignments[i] == assignments[j]
+    if zi == zj
         zj = add_cluster!(clusters(model))
         assignments[j] = move_datapoint!(model, data[j], zi, zj)
     end
@@ -203,8 +214,8 @@ function create_launch_state!(i, j, S, model, data, assignments)
         restricted_gibbs!(i, j, S, model, data, assignments)
     end
     
-    Si = filter(==(zi), assignments)
-    Sj = filter(==(zj), assignments)
+    Si = findall(==(zi), assignments)
+    Sj = findall(==(zj), assignments)
 
     return Si, Sj
 end
@@ -213,21 +224,21 @@ function get_initial_split_merge_move_state(i, j, model, data, assignments)
     (; α) = model.priors.cluster_amplitude
 
     zi, zj = assignments[i], assignments[j]
-    Si0 = filter(==(zi), assignments)
-
+    Si0 = findall(==(zi), assignments)
+    
     log_p = 0.0
 
-    if i == j  # Initially one cluster (we will do a split move)
+    if zi == zj  # Initially one cluster (we will do a split move)
         Sj0 = []
-    else  # i != j, Intially two clusters (we will do a merge move)
-        Sj0 = filter(==(zj), assignments)
+    else  # zi != zj, Intially two clusters (we will do a merge move)
+        Sj0 = findall(==(zj), assignments)
     end
 
     n1, n2 = length(Si0), length(Sj0)
 
-    log_p += sm_move_unnormalized_prior(Si, Sj, model)
+    log_p += sm_move_unnormalized_prior(n1, n2, model)
     log_p += log_marginal_event(zi, Si0, model, data, assignments)
-    log_p += (n2 == 0) ? 0.0 : log_marginal_event(zi, Sj0, model, data, assignments)
+    log_p += (n2 == 0) ? 0.0 : log_marginal_event(zj, Sj0, model, data, assignments)
 
     return Si0, Sj0, log_p
 end
