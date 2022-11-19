@@ -103,7 +103,6 @@ function recompute_cluster_statistics!(
     assignments::AbstractVector{Int64}
 ) where C <: AbstractCluster
     
-
     # Reset all clusters to empty.
     for k in cluster_list.indices
         reset!(cluster_list.clusters[k])
@@ -118,7 +117,7 @@ function recompute_cluster_statistics!(
 
         # Check that cluster k exists.
         while k > length(cluster_list.clusters)
-            push!(cluster_list.clusters, C(cluster_args()))
+            push!(cluster_list.clusters, C())
         end
 
         # Add datapoint x to k-th cluster.
@@ -134,6 +133,7 @@ function recompute_cluster_statistics!(
     # Set the posterior, since we didn't do so when adding datapoints
     for k in cluster_list.indices
         set_posterior!(model, k)
+        gibbs_sample_cluster_params!(cluster_list.clusters[k], model)
     end
 end
 
@@ -154,7 +154,7 @@ function recompute_cluster_statistics_in_place!(
     for (x, k) in zip(datapoints, assignments)
         
         # Skip datapoints assigned to the background.
-        (k < 0) && continue
+        (k == -1) && continue
 
         # Add datapoint x to k-th cluster.
         add_datapoint!(model, x, k, recompute_posterior=false)
@@ -163,5 +163,6 @@ function recompute_cluster_statistics_in_place!(
     # Update the posterior, since we didn't do so when adding datapoints
     for k in cluster_list.indices
         set_posterior!(model, k)
+        gibbs_sample_cluster_params!(cluster_list.clusters[k], model)
     end
 end

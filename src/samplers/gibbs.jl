@@ -57,9 +57,11 @@ function (S::GibbsSampler)(
 
         # Update global variable.
         gibbs_sample_globals!(model, data, assignments)
-        _reset_model_probs!(model)  # TODO -- I think this should be done inside gibbs_sample_globals!
 
         # Recompute background and new cluster probabilities
+        _reset_model_probs!(model)  # TODO -- I think this should be done inside gibbs_sample_globals!
+
+        # TODO why is this here?
         recompute_cluster_statistics!(model, clusters(model), data, assignments)
 
         # Store results

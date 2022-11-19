@@ -34,12 +34,99 @@ function split_merge!(
 
     j = rand(A)
     xj, zj = data[j], assignments[j]
+
+    # Create launch state
+    # - We need to partition the data into Si, Sj where i ∈ Si and j ∈ Sj
+    # - We do this by first randomly assigning data to two clusters, then
+    #   applying `t` rounds of restricted Gibbs sampling.
+    # - Remember to store the initial state, so we can go back if needed
+
+    # S_full, Si0, Sj0, log_p_old = get_initial_split_move_state(i, j, assignments)
+
+    # Si, Sj = initialize_launch_state(i, j, assignments)
+    # restricted_gibbs!(i, j, S_full, model, data, assignments)
+    # ^ Mutates `model` and `assignments`
+
+    # move = (i, j, Si, Sj, S_full)
+    # initial_state = (Si0, Sj0, log_prob_old)
+
+    # split_move!(move, initial_state, model, data, assignments, verbose)
+    #   ... ni, nj, log_p_gibbs = restricted_gibbs!(i, j, Si, Sj, model, data, assignments) 
+    #   ... # ^ mutates, and also splits the data
+    #   ... if failed then merge_data!(S_full, model, data, assignments)
+    # merge_move!(move, initial_state, model, data, assignments, verbose)
+    #   ... log_p_gibbs = psuedo_restricted_gibbs!(Si0, Sj0, i, j, Si, Sj, model, data, assignments)
+    #   ... merge_data!(S_full, model, data, assignments)
+    #   ... if failed then split_data!(Si0, Sj0, model, data, assignments)
  
     if zi == zj
         split_move!(i, j, model, data, assignments, verbose)
     else
         merge_move!(i, j, model, data, assignments, verbose)
     end
+end
+
+function get_initial_split_merge_move_state(i, j, assignments)
+    zi, zj = assignments[i], assignments[j]
+
+    Si0 = filter(==(zi), assignments)
+
+    if i == j
+        Sj0 = []
+    else  # i != j
+        Sj0 = filter(==(zj), assignments)
+    end
+
+    #S_full = 
+
+    #log_p
+
+end
+
+"""
+    restricted_gibbs!(i, j, Si, Sj, model, data, assignments)
+
+Gibbs sample assignments for data in `Si` and `Sj`, except for `i` and `j`,
+restricting assignments to either cluster `i` or cluster `j`. 
+"""
+function restricted_gibbs!(i, j, S_full, model, data, assignments)
+    zi, zj = assignments[i], assignments[j]
+
+    log_p_transition = 0.0
+    ni, nj = 1, 1
+
+    for k in S_full
+        if (k == i) || (k == j)
+            continue  # Skip this datapoint
+        end
+
+        # Remove from current cluster
+        xk, zk = data[k], assignments[k]
+        remove_datapoint!(model, data[k], zk)
+
+        # Assign to one of two possible clusters
+        lp1 = log_posterior_predictive(model.clusters[zi], xk, model)
+        lp2 = log_posterior_predictive(model.clusters[zj], xk, model)
+
+        # Sample: log P(C1) = log(exp(lp1) / (exp(lp1) + exp(lp2)) ) = lp1 - logaddexp(lp1, lp2)
+        log_p_total = logaddexp(lp1, lp2) 
+        log_p_c1 = lp1 - log_p_total
+        log_p_c2 = lp2 - log_p_total
+
+        if log(rand()) <= log_p_c1
+            # Assign to cluster zi
+            add_datapoint!(model, xk, zi)
+            log_p_transition += lop_p_c1
+            ni += 1
+        else
+            # Assign to cluster zj
+            add_datapoint!(model, xk, zj)
+            log_p_transition += lop_p_c2
+            nj += 1
+        end
+    end
+
+    return ni, nj, log_p_transition
 end
 
 function merge_move!(i, j, model, data, assignments, verbose)

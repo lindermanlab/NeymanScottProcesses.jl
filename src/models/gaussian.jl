@@ -246,8 +246,8 @@ end
 function reset!(e::GaussianCluster)
     # TODO -- perhaps make a better name for this function.
     e.datapoint_count = 0
-    e.first_moment = zeros(typeof(e.first_moment))
-    e.second_moment = zeros(typeof(e.second_moment))
+    e.first_moment = zero(e.first_moment)
+    e.second_moment = zero(e.second_moment)
 end
 
 function remove_datapoint!(
@@ -260,14 +260,21 @@ function remove_datapoint!(
     e = clusters(model)[k]
 
     # If this is the last datapoint, we can return early.
-    if kill_empty && (e.datapoint_count == 1)
-        return remove_cluster!(clusters(model), k)
+    if (e.datapoint_count == 1)
+        if kill_empty
+            return remove_cluster!(clusters(model), k)
+        else
+            reset!(e)
+            return k
+        end
     end
 
     # Otherwise update the sufficient statistics.
     e.datapoint_count -= 1
     e.first_moment -= position(x)
     e.second_moment -= position(x) * position(x)'
+    
+    @assert e.datapoint_count >= 0
 
     # Recompute posterior based on new sufficient statistics.
     recompute_posterior && set_posterior!(model, k)
@@ -468,6 +475,10 @@ function gibbs_sample_cluster_params!(
         cluster.sampled_covariance = SMatrix{N, N}(rand(InverseWishart(priors.covariance_df, priors.covariance_scale)))
         
     end
+
+    if cluster.sampled_amplitude <= 0.0
+        error()
+    end
 end
 
 function gibbs_sample_globals!(
@@ -480,9 +491,8 @@ function gibbs_sample_globals!(
 
     # Update background rate
     n0 = count(==(-1), assignments)
-
-    # Update background rate
     A0 = bkgd_amplitude(priors)
+    
     globals.bkgd_rate = rand(posterior(volume(model), n0, A0))
 end
 

@@ -4,13 +4,18 @@
 using Markdown
 using InteractiveUtils
 
+# ╔═╡ dd0f7868-4a6c-4def-b17c-1f7835cba864
+using DrWatson
+
+# ╔═╡ 98d77a92-3744-4df3-a367-df22f3612e9d
+@quickactivate
+
 # ╔═╡ acc93e48-e012-11eb-048e-35c010d6acee
 begin
-    using Pkg; Pkg.activate("."); Pkg.instantiate();
 	using Plots
 	using Random, StatsPlots
 	
-	using NeymanScottProcesses
+	using Revise, NeymanScottProcesses
 	
 	using LinearAlgebra: I
 	using Random: seed!
@@ -18,17 +23,6 @@ end
 
 # ╔═╡ 9a9d1185-0e58-40e5-a4b0-e5efb1f9d448
 using MCMCDiagnosticTools
-
-# ╔═╡ 512d2835-cf42-4f71-8787-f4a93d414324
-md"""
-## Remaining TODO
-- [X] Record time at each sample
-- [X] Produce ESS / rhat per second
-- [ ] Run 6 more chains from 2 different initialization schemes 
-
-- [ ] ?? Put in script, multithread
-- [ ] ?? Recover lost violin plots (oops)
-"""
 
 # ╔═╡ 5de272b0-931a-4851-86ac-4249860a9922
 theme(
@@ -47,7 +41,7 @@ end
 
 # ╔═╡ d1d53b74-3e7b-44eb-b0e7-1e4b612edeb2
 md"""
-## Set parameters
+## Fixed Parameters
 """
 
 # ╔═╡ b0114a0b-58e4-44d2-82db-3a6131435b32
@@ -61,8 +55,6 @@ begin
 	η = 10.0  # Cluster rate
 	Ak = specify_gamma(30.0, 10.0^2)  # Cluster amplitude
 	A0 = specify_gamma(0.1, 1.0^2)  # Background amplitude
-	
-	Ψ = 1e-3 * I(dim)  # Covariance scale
 	ν = 5.0  # Covariance degrees of freedom
 end;
 
@@ -71,22 +63,114 @@ md"""
 ## Generate data
 """
 
-# ╔═╡ aa7eb7d8-2201-415f-b1a1-e475d5f73844
-priors = GaussianPriors(η, Ak, A0, Ψ, ν);
+# ╔═╡ fbe2709e-adaf-40a3-bb40-ed4243ff62cd
+function generate_data(config)
+	# Unpack config
+    @unpack data_seed, cov_scale = config
 
-# ╔═╡ b2b36cde-f6ed-467c-90fe-310dd1105dd1
-begin
-	Random.seed!(1)
-	gen_model = GaussianNeymanScottModel(bounds, priors)
-end;
+	# Set seed
+    Random.seed!(data_seed)
 
-# ╔═╡ 24098a10-f1cd-49a2-9e6e-a9502b86a731
-begin
-	Random.seed!(2)  # Cool seeds: 2, 24
-	data, assignments, clusters = sample(gen_model; resample_latents=true)
+	# Build priors
+	Ψ = cov_scale * I(dim)  # Covariance scale
+	priors = GaussianPriors(η, Ak, A0, Ψ, ν)
 
-	data = Vector{RealObservation{2}}(data)
-end;
+	# Build model
+    gen_model = GaussianNeymanScottModel(bounds, priors)
+
+	# Sample data
+    data, assignments, clusters = sample(gen_model; resample_latents=true)
+    data = Vector{RealObservation{2}}(data)
+
+    return @strdict(priors, gen_model, data, assignments, clusters)
+end
+
+# ╔═╡ ccc338f5-baae-4009-ac9b-413b8b4aafbb
+# Data parameteres
+
+# ╔═╡ d98caa8b-0c20-4b41-b3e2-404061a6f575
+md"""
+## Fit NSP and Gibbs and RJMC
+"""
+
+# ╔═╡ 990a0e9f-2bb5-4cac-8de9-7fd68500a53e
+function fit_data(config)
+	# Unpack config
+    @unpack data_seed, cov_scale, model_seed, base_sampler_type, num_split_merge, max_temp = config
+
+	# Load raw data
+	obs, _ = produce_or_load(
+		datadir("observations"), 
+		@dict(data_seed, cov_scale),
+		generate_data)
+	@unpack priors, gen_model, data, clusters, assignments = obs
+
+	# Set model / chain seed
+    Random.seed!(model_seed)
+
+	# Choose base sampler
+	if base_sampler_type == "gibbs"
+		sampler = GibbsSampler(
+			num_samples=100, 
+			num_split_merge=num_split_merge, 
+			save_interval=1, 
+			verbose=false)
+	elseif base_sampler_type == "rj"
+		sampler = ReversibleJumpSampler(
+			num_samples=100, 
+			birth_prob=0.5,
+			num_split_merge=num_split_merge)
+	else
+		error("Invalid sampler type")
+	end
+
+	# Create sampler
+	temps = exp10.([range(max_temp, 0, length=50); zeros(50)])
+	annealed_sampler = Annealer(false, temps, :cluster_amplitude_var, sampler)
+
+	# Initialize model
+ 	model = GaussianNeymanScottModel(bounds, priors)
+	z0 = rand(1:length(data), length(data))
+
+	# Fit model
+	t = @elapsed results = annealed_sampler(
+		model, 
+		data,
+		initial_assignments=z0
+	)
+	avg_ll = NeymanScottProcesses.log_like(model, data) / length(data)
+
+	println("Fit model in $t seconds")
+	println("Average log likelihood: $(avg_ll)")
+	
+	return @strdict(model, results)
+end
+
+# ╔═╡ d05b5436-7713-48a3-b3f7-c23ecf1d3c8b
+base_config = Dict(
+	"data_seed" => 1,
+	"cov_scale" => 3e-3,
+	"model_seed" => [1, 2, 3],
+	"num_split_merge" => [0, 10],
+	"base_sampler_type" => ["rj", "gibbs"],
+	"max_temp" => 0.0,
+)
+
+# ╔═╡ 8a9d96cb-3baf-433c-a8d4-4d8b83a753fd
+data_seed = base_config["data_seed"]
+
+# ╔═╡ ac60e75a-5691-469c-966b-fca70c2ee7fe
+cov_scale = base_config["cov_scale"]
+
+# ╔═╡ 010719a8-877c-4701-a8b6-3f56111fd735
+observation_data, _ = produce_or_load(
+	datadir("observations"),
+	@dict(data_seed, cov_scale),
+	generate_data
+);
+
+# ╔═╡ b100f88d-5158-4099-a7d9-6e9d433c2f14
+@unpack priors, gen_model, data, clusters, assignments = observation_data;
 
 # ╔═╡ 10924047-b95e-41db-86ef-6f5c2cbea1a5
 length(data)
@@ -123,43 +207,39 @@ begin
 
 end
 
-# ╔═╡ d98caa8b-0c20-4b41-b3e2-404061a6f575
+# ╔═╡ 939cb916-9067-4ba7-86dd-c734a933c6e0
 md"""
-## Fit data with NSP and DPM
+### NOTE: MAKE SURE FORCE IS FALSE
 """
 
-# ╔═╡ 60cf6826-5b63-4d0d-8ee9-1c78b6e5b5dc
-# Construct samplers
+# ╔═╡ 6ee153f0-b83f-4f1f-8b09-8cf4ef023ba9
 begin
-	gibbs_sampler = GibbsSampler(num_samples=100, save_interval=1, verbose=false, num_split_merge=10)
-
-	temps = exp10.([range(4, 0, length=50); zeros(50)])
-	annealed_gibbs_sampler = Annealer(false, temps, :cluster_amplitude_var, gibbs_sampler)
+	models = Dict()
+	results = Dict()
 	
-    #sampler = Annealer(base_sampler, 1e4, :cluster_amplitude_var; 
-	#	num_samples=25, verbose=false)
-end;
+	for c in dict_list(base_config)
+		# Load key parameters for naming
+		@unpack model_seed, base_sampler_type, num_split_merge = c
+		@show base_sampler_type, num_split_merge, model_seed
+		
+		# Run simulation		
+		r, _ = produce_or_load(
+			datadir("fit"),
+			c,
+			fit_data;
+			force=false,
+		)
+
+		# Save result
+		models[(base_sampler_type, num_split_merge, model_seed)] = r["model"]
+		results[(base_sampler_type, num_split_merge, model_seed)] = r["results"]
+	end
+end
 
 # ╔═╡ 5af966fc-cf8e-4a54-9eb3-c84c445ad6f0
 md"""
-#### NSP
+## Plot results
 """
-
-# ╔═╡ f1e0e42f-c321-4969-b1cd-c0385fa73ae5
-# foo = let
-# 	_base_sampler = GibbsSampler(num_samples=100, save_interval=1, verbose=false)
-	
-# 	temps = exp10.([range(4, 0, length=20); zeros(20)])
-# 	_sampler = Annealer(false, temps, :cluster_amplitude_var, _base_sampler)
-	
-# 	_model = GaussianNeymanScottModel(bounds, priors)
-	
-# 	r = _sampler(_model, data)
-# 	println(NeymanScottProcesses.log_like(_model, data) / length(data), "\n")
-
-# 	(r=r, model=_model)
-# end
-"FOO"
 
 # ╔═╡ 6234628c-0274-4b23-9255-69e5f6878549
 num_clusters(r::NamedTuple) = [length(unique(r.assignments[k][r.assignments[k] .!= -1])) for k in 1:length(r.assignments)]
@@ -170,66 +250,21 @@ bkgd_rate(r::NamedTuple) = [r.globals[k].bkgd_rate for k in 1:length(r.globals)]
 # ╔═╡ 058b8bb9-976a-4085-844c-1fa3fb5cb3a4
 true_num_clusters = length(unique(assignments[assignments .!= -1]))
 
-# ╔═╡ 0a91fe9a-1f4e-4b10-beef-896d41fcadd3
-begin
-	nsp_model = Array{Any}(nothing, num_chains)
-	r_nsp = Array{Any}(nothing, num_chains)
-	
-	t_nsp = @elapsed for chain in 1:num_chains
-		Random.seed!(930 + chain)
-		model = GaussianNeymanScottModel(bounds, priors)
-		
-		r = annealed_gibbs_sampler(model, data)
-		println(NeymanScottProcesses.log_like(model, data) / length(data))
-		
-		nsp_model[chain] = model
-		r_nsp[chain] = r
-	end
-	
-	"Fit $num_chains models in $t_nsp seconds"
-end
+# ╔═╡ 26f8ab35-6939-4017-9292-2d9fc8a558dd
+r_gibbs = [results[("gibbs", 10, c)] for c in 1:3]
+
+# ╔═╡ 098e22dc-223d-48d4-a865-bc6dfbedc39d
+r_rj = [results[("rj", 0, c)] for c in 1:3]
+
+# ╔═╡ 73067b2c-df07-415f-9ccc-74c9e70dda64
+model_gibbs = [models[("gibbs", 0, c)] for c in 1:3]
 
 # ╔═╡ 270448bf-3eea-4ce6-87f5-f986d2e05057
 let
-	plt = plot(size=(400, 200))
-	[plot!(num_clusters(r_nsp[k]), lw=2) for k in 1:3]
+	plt = plot(size=(400, 200), ylim=(0, 2*true_num_clusters), title="Number of clusters during CG algorithm", xlabel="Sample")
+	[plot!(num_clusters(r_gibbs[k]), lw=2) for k in 1:3]
 	hline!([true_num_clusters], c=:Black, lw=2, label="True")
 	plt
-end
-
-# ╔═╡ 1401a242-3e07-4d2d-be8b-ec5599868457
-md"""
-#### NSP with RJMCMC
-"""
-
-# ╔═╡ 7560d033-9b51-4812-a857-19862b1767ec
-# Construct samplers
-begin
-	rj_sampler = ReversibleJumpSampler(
-		num_samples=100, birth_prob=0.5, num_split_merge=10)
-	
-	rj_temps = exp10.([range(4, 0, length=100); zeros(50)])
-	
-	annealed_rj_sampler = Annealer(false, rj_temps, :cluster_amplitude_var, rj_sampler)
-end;
-
-# ╔═╡ a274e4f7-b8d7-4c8a-a730-70889b0126ba
-begin
-	rj_nsp_model = []
-	rj_r_nsp = []
-	
-	t_rj = @elapsed for chain in 1:num_chains
-		Random.seed!(2 + chain)
-		model = GaussianNeymanScottModel(bounds, priors)
-		@show NeymanScottProcesses.log_like(model, data)
-		
-		r = annealed_rj_sampler(model, data)
-		
-		push!(rj_nsp_model, model)
-		push!(rj_r_nsp, r)
-	end
-	
-	"Fit $num_chains models in $t_rj seconds"
 end
 
 # ╔═╡ f20d5e13-172c-4955-82d5-0248ab48cad4
@@ -240,27 +275,27 @@ plt_cgbd_ll = let
 	plot(size=(250, 200), dpi=200)
 	
 	plot!(
-		[append!([0.0], r.log_p) for r in r_nsp] / length(data), 
+		[append!([0.0], r.log_p) for r in r_gibbs] / length(data), 
 		lw=2, 
 		c=1, 
 		label=["CG" nothing nothing], 
 		alpha=0.7
 	)
 	plot!(
-		[append!([0.0], r.log_p) for r in rj_r_nsp] / length(data), 
+		[append!([0.0], r.log_p) for r in r_rj] / length(data), 
 		lw=2, 
 		c=2, 
 		label=["RJMCMC" nothing nothing], 
 		alpha=0.7
 	)
 	
-	
 	plot!(
 		ylim=(1000/length(data), Inf), 
 		legend=:bottomright, 
 		ylabel="Mean Log Likelihood", 
 		xlabel="Sample",
-		xticks=(0:5000:15_000, ["0", "5k", "10k", "15k"]),
+		xlim=(-100, 3000),
+		xticks=(0:1000:15_000),
 		grid=false
 	)
 end
@@ -269,27 +304,23 @@ end
 plt_cgbd_nc = let
 	plot(size=(250, 200), dpi=200)
 	plot!(
-		[get_runtime(r) for r in r_nsp],
-		[get_num_clusters(r) for r in r_nsp], 
-		lw=2, c=1, label=nothing, alpha=0.5
+		[get_runtime(r) for r in r_gibbs],
+		[get_num_clusters(r) for r in r_gibbs], 
+		lw=2, c=1, label=["CG" nothing nothing]
 	)
 	plot!(
-		[get_runtime(r) for r in rj_r_nsp],
-		[get_num_clusters(r) for r in rj_r_nsp], 
-		lw=2, c=2, label=nothing, alpha=0.5
+		[get_runtime(r) for r in r_rj],
+		[get_num_clusters(r) for r in r_rj], 
+		lw=2, c=2, label=["RJ" nothing nothing], alpha=0.5
 	)
 	hline!([true_num_clusters], c=:Black, lw=2, label="True")
 	
 	
 	plot!(
-		ylabel="Number of Clusters", xlabel="Seconds", legend=:bottomright,
-		#xticks=(0:5000:15_000, ["0", "5k", "10k", "15k"]),
-		ylim=(0, 16), grid=false
+		ylabel="Number of Clusters", xlabel="Seconds", legend=:topright,
+		ylim=(0, true_num_clusters*3), grid=false
 	)
 end
-
-# ╔═╡ b4180fdc-b209-414e-a028-b7890e69c302
-plot([r.log_p for r in r_nsp], lw=3, size=(250, 200))
 
 # ╔═╡ b301bb90-2178-4d49-bca2-e1f7ce59975f
 function make_consistent(ω, data)
@@ -310,10 +341,8 @@ begin
 	plt_fit_data_nsp = make_data_plot()
 	#nsp_ω = make_consistent(r_nsp[2].assignments[end], data_x)
 	#scatter!(data_x, data_y, c=nsp_ω, title="fit with nsp")
-	plot_clusters!(plt_fit_data_nsp, nsp_model[1].clusters)
+	plot_clusters!(plt_fit_data_nsp, model_gibbs[1].clusters)
 	plot!(plt_fit_data_nsp, title="Learned (NSP)")
-
-	
 	
 	plot(plt_true_data, plt_fit_data_nsp, size=(500, 200))
 	"Started NSP plot"
@@ -331,10 +360,10 @@ make_chain(rs, f) = reshape(
 );
 
 # ╔═╡ b48c741d-b522-4314-8a95-ca5ff2089797
-chain_num_clusters_cg = make_chain(r_nsp, num_clusters);
+chain_num_clusters_cg = make_chain(r_gibbs, num_clusters);
 
 # ╔═╡ db3947df-abe6-4349-ba56-3d89b72d5a1a
-chain_num_clusters_rj = make_chain(rj_r_nsp, num_clusters);
+chain_num_clusters_rj = make_chain(r_rj, num_clusters);
 
 # ╔═╡ 4929b857-51bd-4c2d-9cf8-a0d59820f502
 size(chain_num_clusters_cg)
@@ -350,84 +379,58 @@ get_psr(chain, samples) = [gelmandiag(chain[1:s, :, :])[2][1] for s in samples]
 
 # ╔═╡ 1f0061bf-2699-4e6d-bcbe-2c5fb4287d7a
 let
-	_x = 1000:40:size(chain_num_clusters_cg, 1)
+	_x = 50:10:size(chain_num_clusters_cg, 1)
 
-	t_cg = mean([get_runtime(rn) for rn in r_nsp])
-	t_rj = mean([get_runtime(rn) for rn in rj_r_nsp])
+	t_cg = mean([get_runtime(rn) for rn in r_gibbs])
+	t_rj = mean([get_runtime(rn) for rn in r_rj])
 	
 	plt1 = plot(title="Effective Sample Size", legend=:topleft)
-	plot!(t_cg[_x], get_ess(chain_num_clusters_cg, _x), lw=2, label="CG")
-	plot!(t_rj[_x], get_ess(chain_num_clusters_rj, _x), lw=2, label="RJ")
 
-	plt2 = plot(title="Potential Scale Reduction", ylim=(0, 2))
-	plot!(t_cg[_x], get_psr(chain_num_clusters_cg, _x), lw=2)
-	plot!(t_rj[_x], get_psr(chain_num_clusters_rj, _x), lw=2)
+	plot!(t_cg[_x], get_ess(chain_num_clusters_cg, _x), lw=3, label="CG + 10 split merge")
+	plot!(t_rj[_x], get_ess(chain_num_clusters_rj, _x), lw=3, label="RJ (no split merge)")
+
+	plt2 = plot(title="Potential Scale Reduction", ylim=(0.9, 1.1))
 	hline!([1], color=:black, lw=2)
+	plot!(t_cg[_x], get_psr(chain_num_clusters_cg, _x), lw=3, c=1)
+	plot!(t_rj[_x], get_psr(chain_num_clusters_rj, _x), lw=3, c=2)
 
-	plot(plt1, plt2, layout=(2, 1))
+	plot(plt1, plt2, layout=(2, 1), xlims=(0, 60))
 	
-end
-
-# ╔═╡ b4f57896-a540-41a7-99ae-02b82d64ad77
-get_runtime(r_nsp[1]) |> maximum
-
-# ╔═╡ 4a008c9b-fbc4-407c-91cf-d5ca9e0a4662
-minimum(get_psr(chain_num_clusters_cg, 1000:10:size(chain_num_clusters_cg, 1)))
-
-# ╔═╡ 69e40e4e-3c52-4c4a-a36d-ba6800d29bd7
-minimum(get_psr(chain_num_clusters_rj, 1000:10:size(chain_num_clusters_cg, 1)))
-
-# ╔═╡ 65fbe8af-0c79-4710-a7a2-9b5b1b456a42
-md"""
-## DPM
-"""
-
-# ╔═╡ 77f2fb41-c0bc-4aac-a98d-0048c7b2a8b0
-md"""
-## Compare summary statistics
-
-Plot the accuracy and the number of clusters.
-"""
-
-# ╔═╡ e6901d7d-6f3f-493e-9d00-7524475c5ccb
-begin
-	num_samples = 1000
-end;
-
-# ╔═╡ 3e429d3a-1d3e-48ff-b5aa-37e1bb0ec65c
-begin
-
 end
 
 # ╔═╡ Cell order:
-# ╠═512d2835-cf42-4f71-8787-f4a93d414324
+# ╠═dd0f7868-4a6c-4def-b17c-1f7835cba864
+# ╠═98d77a92-3744-4df3-a367-df22f3612e9d
 # ╠═acc93e48-e012-11eb-048e-35c010d6acee
-# ╠═5de272b0-931a-4851-86ac-4249860a9922
-# ╠═be352c60-88b9-421a-8fd7-7d34e19665e6
+# ╟─5de272b0-931a-4851-86ac-4249860a9922
+# ╟─be352c60-88b9-421a-8fd7-7d34e19665e6
 # ╟─d1d53b74-3e7b-44eb-b0e7-1e4b612edeb2
 # ╠═b0114a0b-58e4-44d2-82db-3a6131435b32
 # ╟─b9ee61fa-c387-404b-b273-11dcfa8b63a0
-# ╠═aa7eb7d8-2201-415f-b1a1-e475d5f73844
-# ╠═b2b36cde-f6ed-467c-90fe-310dd1105dd1
-# ╠═24098a10-f1cd-49a2-9e6e-a9502b86a731
+# ╟─fbe2709e-adaf-40a3-bb40-ed4243ff62cd
+# ╠═ccc338f5-baae-4009-ac9b-413b8b4aafbb
+# ╠═8a9d96cb-3baf-433c-a8d4-4d8b83a753fd
+# ╠═ac60e75a-5691-469c-966b-fca70c2ee7fe
+# ╠═010719a8-877c-4701-a8b6-3f56111fd735
+# ╠═b100f88d-5158-4099-a7d9-6e9d433c2f14
 # ╠═10924047-b95e-41db-86ef-6f5c2cbea1a5
 # ╟─31444176-7908-4eef-865d-4096aed328cd
 # ╟─d98caa8b-0c20-4b41-b3e2-404061a6f575
-# ╠═60cf6826-5b63-4d0d-8ee9-1c78b6e5b5dc
+# ╟─990a0e9f-2bb5-4cac-8de9-7fd68500a53e
+# ╠═d05b5436-7713-48a3-b3f7-c23ecf1d3c8b
+# ╟─939cb916-9067-4ba7-86dd-c734a933c6e0
+# ╟─6ee153f0-b83f-4f1f-8b09-8cf4ef023ba9
 # ╟─5af966fc-cf8e-4a54-9eb3-c84c445ad6f0
-# ╟─f1e0e42f-c321-4969-b1cd-c0385fa73ae5
 # ╠═6234628c-0274-4b23-9255-69e5f6878549
 # ╠═db0fa5a1-11f8-44fa-a17a-814c9ffcfcf8
 # ╠═058b8bb9-976a-4085-844c-1fa3fb5cb3a4
-# ╠═0a91fe9a-1f4e-4b10-beef-896d41fcadd3
-# ╟─270448bf-3eea-4ce6-87f5-f986d2e05057
-# ╟─1401a242-3e07-4d2d-be8b-ec5599868457
-# ╠═7560d033-9b51-4812-a857-19862b1767ec
-# ╠═a274e4f7-b8d7-4c8a-a730-70889b0126ba
+# ╠═26f8ab35-6939-4017-9292-2d9fc8a558dd
+# ╠═098e22dc-223d-48d4-a865-bc6dfbedc39d
+# ╠═73067b2c-df07-415f-9ccc-74c9e70dda64
+# ╠═270448bf-3eea-4ce6-87f5-f986d2e05057
 # ╠═f20d5e13-172c-4955-82d5-0248ab48cad4
 # ╠═8b5b0efa-8be5-4b29-8531-1f52abb8ebf7
 # ╠═6044fecb-479f-49d2-ab76-f30cdbae0691
-# ╠═b4180fdc-b209-414e-a028-b7890e69c302
 # ╠═b301bb90-2178-4d49-bca2-e1f7ce59975f
 # ╟─27a3553e-9211-45b8-b963-55c4511e6917
 # ╟─d83f7bf8-552a-4c1f-ab09-6c394d2deb4e
@@ -440,10 +443,3 @@ end
 # ╠═84d56a3d-f364-4089-8808-289dd064e2f0
 # ╠═6650bf54-e43a-4916-a0c7-1c0b0f0e2f4e
 # ╠═1f0061bf-2699-4e6d-bcbe-2c5fb4287d7a
-# ╠═b4f57896-a540-41a7-99ae-02b82d64ad77
-# ╠═4a008c9b-fbc4-407c-91cf-d5ca9e0a4662
-# ╠═69e40e4e-3c52-4c4a-a36d-ba6800d29bd7
-# ╠═65fbe8af-0c79-4710-a7a2-9b5b1b456a42
-# ╟─77f2fb41-c0bc-4aac-a98d-0048c7b2a8b0
-# ╠═e6901d7d-6f3f-493e-9d00-7524475c5ccb
-# ╠═3e429d3a-1d3e-48ff-b5aa-37e1bb0ec65c

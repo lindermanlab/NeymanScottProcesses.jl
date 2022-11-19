@@ -40,10 +40,18 @@ function (S::ReversibleJumpSampler)(
     data_order = collect(1:length(data))
 
     for s in 1:num_samples
-
         # [1] Propose a birth death move
-        birth_death!(model, data; 
-            birth_prob=get_birth_prob(S, s), proposal=S.birth_proposal)
+        for _ in 1:10
+            birth_death!(model, data; 
+                birth_prob=get_birth_prob(S, s), proposal=S.birth_proposal)
+        end
+
+        # We need to reset all the assignments and clusters sufficient stats
+        assignments .= -1
+        # Reset all clusters to empty.
+        for k in model.clusters.indices
+            reset!(model.clusters[k])
+        end
 
         # [2] Sample parent assignments.        
         for i in data_order
@@ -59,11 +67,11 @@ function (S::ReversibleJumpSampler)(
         end
 
         # [3] Propose a split-merge move
+        # recompute_cluster_statistics_in_place!(model, clusters(model), data, assignments)
         for _ in 1:S.num_split_merge
             split_merge!(model, data, assignments; verbose=verbose)
         end
 
-        # [4] Update cluster parameters and global variables.
         # Cluster parameters
         for cluster in clusters(model)
             gibbs_sample_cluster_params!(cluster, model)
@@ -220,10 +228,12 @@ function birth_death!(
         # Accept or reject
         # If rejected, remove the cluster
         if log(rand()) < log_p_accept
-            nothing  # Accept the cluster!
+            # Accept the cluster!
             #@show "Birth accepted"
+            return k_new
         else
             remove_cluster!(clusters(model), k_new)
+            return -1
         end
 
     # Propose a death
@@ -284,6 +294,9 @@ function birth_death!(
         if log(rand()) < log_p_accept
             #@show "Death accepted."
             remove_cluster!(clusters(model), k_death)
+            return k_death
+        else
+            return -1
         end
     end
 end

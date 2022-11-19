@@ -55,10 +55,11 @@ Random.seed!(1); gen_model = GaussianNeymanScottModel(bounds, priors);
 
 # ╔═╡ 4eaf4c65-0247-47e6-be04-a24451d9ceba
 begin
-	Random.seed!(5)  # Cool seeds: 2, 24
+	Random.seed!(6)
 	data, assignments, clusters = sample(gen_model; resample_latents=true)
 
 	data = Vector{RealObservation{2}}(data)
+	num_data = length(data)
 
 	@show length(data)
 	@show length(clusters)
@@ -73,7 +74,7 @@ md"""
 """
 
 # ╔═╡ 3b815b66-d78c-4c57-9054-d8f65ef48633
-temps = exp10.([range(4, 0, length=5); zeros(15)])
+temps = exp10.([range(0, 0, length=1); zeros(49)])
 
 # ╔═╡ ede2163c-4464-496b-a31e-0f211c8186d0
 gibbs_sampler = GibbsSampler(num_samples=100, save_interval=1, verbose=false, num_split_merge=10);
@@ -84,11 +85,16 @@ anneal = s -> Annealer(false, temps, :cluster_amplitude_var, s)
 # ╔═╡ 8181909e-a6d8-40de-982b-cdd628c4abd6
 annealed_gibbs_sampler = anneal(gibbs_sampler);
 
+# ╔═╡ c465c00a-30a2-4797-9b5d-2892f44bd1c6
+num_data
+
 # ╔═╡ 65f36acc-e0cf-41e8-a5f7-7d0d300e457c
 begin
 	Random.seed!(5)
 	model = GaussianNeymanScottModel(bounds, priors)
-	@time results = annealed_gibbs_sampler(model, data)
+	@time results = annealed_gibbs_sampler(model, data,
+		initial_assignments=rand(1:num_data, num_data)
+	)
 end;
 
 # ╔═╡ bf5f6554-0bd5-4d9e-a6c7-df17f6b8c425
@@ -157,7 +163,11 @@ get_num_clusters(r::NamedTuple) = [
 # ╔═╡ 7e091c40-301b-4dfb-bec5-773b7b5dd2ee
 plot(
 	plot(get_runtime(results), results.log_p), 
-	hline!(plot(get_num_clusters(results)), [true_num_clusters]),
+	hline!(
+		plot(get_runtime(results), get_num_clusters(results)), 
+		[true_num_clusters],
+		ylim=(0, 2*true_num_clusters),
+	),
 	size=(600, 200),
 )
 
@@ -177,6 +187,7 @@ plot(
 # ╠═ede2163c-4464-496b-a31e-0f211c8186d0
 # ╠═22f1aa9b-0b10-4c79-a41f-b7f2898441cd
 # ╠═8181909e-a6d8-40de-982b-cdd628c4abd6
+# ╠═c465c00a-30a2-4797-9b5d-2892f44bd1c6
 # ╠═65f36acc-e0cf-41e8-a5f7-7d0d300e457c
 # ╠═7e091c40-301b-4dfb-bec5-773b7b5dd2ee
 # ╟─1e3a5cf5-9072-45c2-bb3b-46ffff01a926
