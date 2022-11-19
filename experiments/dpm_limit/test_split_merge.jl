@@ -74,7 +74,7 @@ md"""
 """
 
 # ╔═╡ 3b815b66-d78c-4c57-9054-d8f65ef48633
-temps = exp10.([range(0, 0, length=1); zeros(49)])
+temps = exp10.([range(0, 0, length=20); zeros(10)])
 
 # ╔═╡ ede2163c-4464-496b-a31e-0f211c8186d0
 gibbs_sampler = GibbsSampler(num_samples=100, save_interval=1, verbose=false, num_split_merge=10);

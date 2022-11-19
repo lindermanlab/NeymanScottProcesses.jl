@@ -35,30 +35,6 @@ function split_merge!(
     j = rand(A)
     xj, zj = data[j], assignments[j]
 
-    # Create launch state
-    # - We need to partition the data into Si, Sj where i ∈ Si and j ∈ Sj
-    # - We do this by first randomly assigning data to two clusters, then
-    #   applying `t` rounds of restricted Gibbs sampling.
-    # - Remember to store the initial state, so we can go back if needed
-
-    # S_full, Si0, Sj0, log_p_old = get_initial_split_move_state(i, j, assignments)
-
-    # Si, Sj = initialize_launch_state(i, j, assignments)
-    # restricted_gibbs!(i, j, S_full, model, data, assignments)
-    # ^ Mutates `model` and `assignments`
-
-    # move = (i, j, Si, Sj, S_full)
-    # initial_state = (Si0, Sj0, log_prob_old)
-
-    # split_move!(move, initial_state, model, data, assignments, verbose)
-    #   ... ni, nj, log_p_gibbs = restricted_gibbs!(i, j, Si, Sj, model, data, assignments) 
-    #   ... # ^ mutates, and also splits the data
-    #   ... if failed then merge_data!(S_full, model, data, assignments)
-    # merge_move!(move, initial_state, model, data, assignments, verbose)
-    #   ... log_p_gibbs = psuedo_restricted_gibbs!(Si0, Sj0, i, j, Si, Sj, model, data, assignments)
-    #   ... merge_data!(S_full, model, data, assignments)
-    #   ... if failed then split_data!(Si0, Sj0, model, data, assignments)
- 
     if zi == zj
         split_move!(i, j, model, data, assignments, verbose)
     else
@@ -66,123 +42,42 @@ function split_merge!(
     end
 end
 
-function get_initial_split_merge_move_state(i, j, assignments)
-    zi, zj = assignments[i], assignments[j]
-
-    Si0 = filter(==(zi), assignments)
-
-    if i == j
-        Sj0 = []
-    else  # i != j
-        Sj0 = filter(==(zj), assignments)
-    end
-
-    #S_full = 
-
-    #log_p
-
-end
-
-"""
-    restricted_gibbs!(i, j, Si, Sj, model, data, assignments)
-
-Gibbs sample assignments for data in `Si` and `Sj`, except for `i` and `j`,
-restricting assignments to either cluster `i` or cluster `j`. 
-"""
-function restricted_gibbs!(i, j, S_full, model, data, assignments)
-    zi, zj = assignments[i], assignments[j]
-
-    log_p_transition = 0.0
-    ni, nj = 1, 1
-
-    for k in S_full
-        if (k == i) || (k == j)
-            continue  # Skip this datapoint
-        end
-
-        # Remove from current cluster
-        xk, zk = data[k], assignments[k]
-        remove_datapoint!(model, data[k], zk)
-
-        # Assign to one of two possible clusters
-        lp1 = log_posterior_predictive(model.clusters[zi], xk, model)
-        lp2 = log_posterior_predictive(model.clusters[zj], xk, model)
-
-        # Sample: log P(C1) = log(exp(lp1) / (exp(lp1) + exp(lp2)) ) = lp1 - logaddexp(lp1, lp2)
-        log_p_total = logaddexp(lp1, lp2) 
-        log_p_c1 = lp1 - log_p_total
-        log_p_c2 = lp2 - log_p_total
-
-        if log(rand()) <= log_p_c1
-            # Assign to cluster zi
-            add_datapoint!(model, xk, zi)
-            log_p_transition += lop_p_c1
-            ni += 1
-        else
-            # Assign to cluster zj
-            add_datapoint!(model, xk, zj)
-            log_p_transition += lop_p_c2
-            nj += 1
-        end
-    end
-
-    return ni, nj, log_p_transition
-end
-
 function merge_move!(i, j, model, data, assignments, verbose)
     zi, zj = assignments[i], assignments[j]
     xi, xj = data[i], data[j]
     K_old = num_clusters(model)
 
-    # Compute likelihood of old partition
+    # Compute probability of old partition
     Si = findall(==(zi), assignments)
     Sj = findall(==(zj), assignments)
     n1, n2 = length(Si), length(Sj)
 
-    log_like_old = (
-        log_marginal_event(zi, Si, model, data, assignments) +
-        log_marginal_event(zj, Sj, model, data, assignments)
-    )
+    log_p_old = sm_move_unnormalized_prior(n1, n2, model)
+    log_p_old += log_marginal_event(zi, Si, model, data, assignments)
+    log_p_old += log_marginal_event(zj, Sj, model, data, assignments)
 
-    # [A] Merge all spikes into the first cluster
-    for k in Sj
-        remove_datapoint!(model, data[k], zj)
-        add_datapoint!(model, data[k], zi)
-        assignments[k] = zi
-    end
+    # [A] Merge all spikes into the first cluster (zi)
+    move_partition!(Sj, model, data, assignments, zj, zi)
 
     # [B] Compute acceptance probabibility
-    (; α, β) = model.priors.cluster_amplitude
-
     # Proposal probability
     log_q_rev = (n1 + n2 - 2) * log(0.5)
     log_q_fwd = log(1.0)
 
-    # Prior on partition
-    log_p_old = (model.new_cluster_log_prob - log(α)) + lgamma(α + n1) + lgamma(α + n2) - 2*lgamma(α)
-    log_p_new = lgamma(α + n1 + n2) - lgamma(α)
+    # Probability of new partition
+    log_p_new = sm_move_unnormalized_prior(n1+n2, 0, model)
+    log_p_new += log_marginal_event(zi, [Si; Sj], model, data, assignments)
 
-    # Likelihood of new partition
-    log_like_new = log_marginal_event(zi, [Si; Sj], model, data, assignments)
-
-    log_accept_prob = (
-        log_q_rev - log_q_fwd
-        + log_p_new - log_p_old
-        + log_like_new - log_like_old
-    )
+    log_accept_prob = (log_q_rev - log_q_fwd) + (log_p_new - log_p_old)
 
     # [C] Accept or reject
     if log(rand()) < log_accept_prob
         # Leave the new assignments as is, do nothing
         verbose && println("Merge accepted\n")
     else
-        # Undo assignments
+        # Undo assignments (move back to zj)
         zj = add_cluster!(clusters(model))    
-        for k in Sj
-            remove_datapoint!(model, data[k], zi)
-            add_datapoint!(model, data[k], zj)
-            assignments[k] = zj
-        end
+        move_partition!(Sj, model, data, assignments, zi, zj)
     end
 end
 
@@ -191,199 +86,86 @@ function split_move!(i, j, model, data, assignments, verbose)
     xi, xj = data[i], data[j]
     K_old = num_clusters(model)
 
-    # Compute likelihood of old partition
+    # Compute probability of old partition
     S_full = findall(==(zi), assignments)
-    log_like_old = log_marginal_event(zi, S_full, model, data, assignments)
+    n_full = length(S_full)
+
+    log_p_old = sm_move_unnormalized_prior(n_full, 0, model)
+    log_p_old += log_marginal_event(zi, S_full, model, data, assignments)
 
     # Create a new cluster and move xj over
     zj = add_cluster!(clusters(model))
-    remove_datapoint!(model, xj, zi)
-    add_datapoint!(model, xj, zj)
-    assignments[j] = zj
+    assignments[j] = move_datapoint!(model, data[j], zi, zj)
 
     # [A] Split up remaining spikes
-    S = filter(k -> (k != i) && (k != j), S_full)
-
-    Si, Sj = [i], [j]
-    for k in S
-        if rand() < 0.5
-            push!(Si, k)
-        else
-            remove_datapoint!(model, data[k], zi)
-            add_datapoint!(model, data[k], zj)
-            assignments[k] = zj
-            push!(Sj, k)
-        end
-    end
-
+    Si, Sj = split_randomly!(i, j, S_full, model, data, assignments)
     n1, n2 = length(Si), length(Sj)
 
     # [B] Compute acceptance probabibility
-    (; α, β) = cluster_amplitude(model.priors)
-
     # Proposal probability
     log_q_fwd = (n1 + n2 - 2) * log(0.5)
     log_q_rev = log(1.0)
 
-    # Prior on partition
-    log_p_new = (model.new_cluster_log_prob - log(α)) + lgamma(α + n1) + lgamma(α + n2) - 2*lgamma(α)
-    log_p_old = lgamma(α + n1 + n2) - lgamma(α)
+    # Probability of new partition
+    log_p_new = sm_move_unnormalized_prior(n1, n2, model)
+    log_p_new += log_marginal_event(zi, Si, model, data, assignments)
+    log_p_new += log_marginal_event(zj, Sj, model, data, assignments)
 
-    # Likelihood of new partition
-    log_like_new = (
-        log_marginal_event(zi, Si, model, data, assignments) + 
-        log_marginal_event(zj, Sj, model, data, assignments)
-    )
-
-    log_accept_prob = (
-        log_q_rev - log_q_fwd
-        + log_p_new - log_p_old
-        + log_like_new - log_like_old
-    )
-
+    log_accept_prob = (log_q_rev - log_q_fwd) + (log_p_new - log_p_old)
 
     # [C] Accept or reject
     if log(rand()) < log_accept_prob
         # Leave the new assignments as is, do nothing        
         verbose && println("Split accepted\n")
     else
-        # Undo assignments
-        for k in Sj
-            remove_datapoint!(model, data[k], zj)
-            add_datapoint!(model, data[k], zi)
-            assignments[k] = zi
+        # Undo assignments (move back to zi)
+        move_partition!(Sj, model, data, assignments, zj, zi)
+    end
+end
+
+# ====
+# HELPERS
+# ====
+
+function sm_move_unnormalized_prior(n1, n2, model)
+    (; α) = model.priors.cluster_amplitude
+    mnclp = model.new_cluster_log_prob
+
+    if n2 == 0  # One cluster
+        return lgamma(α + n1 + n2) - lgamma(α)
+    else  # Two clusters
+        return (mnclp - log(α)) + lgamma(α + n1) + lgamma(α + n2) - 2*lgamma(α)
+    end
+end 
+
+function move_datapoint!(model, x, z1, z2)
+    remove_datapoint!(model, x, z1)
+    add_datapoint!(model, x, z2)
+    return z2
+end
+
+function move_partition!(S, model, data, assignments, z1, z2)
+    for k in S
+        assignments[k] = move_datapoint!(model, data[k], z1, z2)
+    end
+end
+
+function split_randomly!(i, j, S, model, data, assignments)
+    zi, zj = assignments[i], assignments[j]
+    Si, Sj = [i], [j]
+
+    for k in S
+        if (k == i) || (k == j)
+            continue  # Skip
+        end
+
+        if rand() < 0.5
+            push!(Si, k)
+        else
+            assignments[k] = move_datapoint!(model, data[k], zi, zj)
+            push!(Sj, k)
         end
     end
-end
 
-function log_marginal_event(zi, S, model, data, assignments)
-    return _log_marginal_event(zi, S, model, data, assignments)
-end
-
-function _log_marginal_event(zi, S, model, data, assignments)
-    i = pop!(S)
-    x = data[i]
-
-    # Base case
-    if length(S) == 0
-        ll = log_posterior_predictive(x, model)
-
-    # Recursive case
-    else
-        # Remove spike
-        remove_datapoint!(model, x, zi)
-
-        # Compute predictive probability
-        ll = log_posterior_predictive(clusters(model)[zi], x, model)
-
-        # Recurse
-        ll += _log_marginal_event(zi, S, model, data, assignments)
-
-        # Add datapoint back to cluster
-        add_datapoint!(model, x, zi)
-    end
-
-    push!(S, i)
-
-    return ll
-end
-
-function log_marginal_event(zi, S, model::GaussianNeymanScottModel, data, assignments)
-
-    #@assert length(S) > 0
-    
-    # ll = _log_marginal_event(zi, S, model, data, assignments)
-    # ll = gauss_log_marginal(zi, model)
-
-    # Fancy way --- works exactly!
-
-    # Remove one datapoint
-    i = first(S)
-    x = data[i]
-    remove_datapoint!(model, x, zi)
-    
-    # Compute p({x1}) p({x1, ..., xk} | {x1})
-    ll = gauss_log_marginal(zi, model, x) + log_posterior_predictive(x, model)
-    
-    # Add datapoint back
-    add_datapoint!(model, x, zi)
-
-    return ll
-end
-
-function gauss_log_marginal(zi, model, x=nothing, tol=1e-2)
-    C = clusters(model)[zi]
-
-    d = length(C.first_moment)
-    n = C.datapoint_count
-
-    # Get prior mean parameters
-    μ0 = model.priors.mean_prior
-    κ0 = 0.0
-    if isnothing(x) 
-        μ0 .+= (bounds(model) ./ 2.0)
-        κ0 += tol * maximum(model.bounds)
-    end
-    Ψ0 = model.priors.covariance_scale
-    ν0 = model.priors.covariance_df
-
-    # Get prior natural parameters
-    η01, η02, η03, η04 = niw_get_natural(μ0, κ0, Ψ0, ν0, d)
-
-    # If x != nothing, then compute p({x1, x2, ..., xk} | {x1})
-    if !isnothing(x)
-        # Update prior natural parameters
-        η01 += 1
-        η02 += x.position * x.position'
-        η03 += x.position
-        η04 += 1
-
-        # Update prior mean parameters
-        μ0, κ0, Ψ0, ν0 = niw_get_mean(η01, η02, η03, η04, d)
-    end
-
-    # Get posterior natural parameters
-    ηN1 = η01 + n
-    ηN2 = η02 + C.second_moment
-    ηN3 = η03 + C.first_moment
-    ηN4 = η04 + n
-
-    # Get posterior mean parameters
-    μN, κN, ΨN, νN = niw_get_mean(ηN1, ηN2, ηN3, ηN4, d)
-
-    log_measure = (-n * d / 2) * log(2π)
-    niw_log_normalizer_prior = lognorm_niw(μ0, κ0, Ψ0, ν0, d)
-    niw_log_normalizer_posterior = lognorm_niw(μN, κN, ΨN, νN, d)
-
-    return log_measure + niw_log_normalizer_posterior - niw_log_normalizer_prior
-end
-
-function lognorm_niw(μ, κ, Ψ, ν, d)
-    lp = 0.0
-
-    lp += (ν * d / 2) * log(2)
-    lp += Distributions.logmvgamma(d, ν/2)
-    lp -= (ν / 2) * logdet(Ψ)
-    lp -= (d / 2) * log(κ)
-    lp += (d / 2) * log(2π)
-
-    return lp
-end
-
-function niw_get_mean(η1, η2, η3, η4, d)
-    κ = η4
-    ν = η1 - d - 2
-    μ = η3 / η4
-    Ψ = η2 - η3*η3' / η4
-
-    return μ, κ, Ψ, ν
-end
-
-function niw_get_natural(μ, κ, Ψ, ν, d)
-    η1 = ν + d + 2
-    η2 = Ψ + κ * μ * μ'
-    η3 = κ * μ
-    η4 = κ
-
-    return η1, η2, η3, η4
+    return Si, Sj
 end

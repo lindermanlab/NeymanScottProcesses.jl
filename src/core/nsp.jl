@@ -87,6 +87,40 @@ function log_like(model::NeymanScottModel, data::Vector{<: AbstractDatapoint})
     return ll
 end
 
+"""
+    log_marginal_event(zi, S, model, data, assignments)
+
+Compute posterior predictive of a cluster `{x1, ..., xk}` given model (collapsing
+out cluster parameters).
+"""
+function log_marginal_event(zi, S, model, data, assignments)
+    i = pop!(S)
+    x = data[i]
+
+    # Base case
+    if length(S) == 0
+        ll = log_posterior_predictive(x, model)
+
+    # Recursive case
+    else
+        # Remove spike
+        remove_datapoint!(model, x, zi)
+
+        # Compute predictive probability
+        ll = log_posterior_predictive(clusters(model)[zi], x, model)
+
+        # Recurse
+        ll += _log_marginal_event(zi, S, model, data, assignments)
+
+        # Add datapoint back to cluster
+        add_datapoint!(model, x, zi)
+    end
+
+    push!(S, i)
+
+    return ll
+end
+
 
 
 
