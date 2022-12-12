@@ -10,6 +10,7 @@ Base.@kwdef struct ReversibleJumpSampler <: AbstractSampler
     num_split_merge::Int = 0
     split_merge_gibbs_moves::Int = 0
     num_move::Int = 10
+    max_time::Real = Inf
 end
 
 function get_birth_prob(S::ReversibleJumpSampler, s::Int)
@@ -90,6 +91,10 @@ function (S::ReversibleJumpSampler)(
             j = Int(s / save_interval)
             update_results!(results, model, assignments, data, S)
             verbose && print(s, "-")  # Display progress
+        end
+
+        if last(results.time) - first(results.time) > S.max_time
+            break
         end
 
     end

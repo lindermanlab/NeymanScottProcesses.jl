@@ -5,6 +5,7 @@ Base.@kwdef struct GibbsSampler <: AbstractSampler
     num_samples::Int = 100
     num_split_merge::Int = 0
     split_merge_gibbs_moves::Int = 0
+    max_time::Real = Inf 
 end
 
 function (S::GibbsSampler)(
@@ -70,6 +71,10 @@ function (S::GibbsSampler)(
             j = Int(s / save_interval)
             update_results!(results, model, assignments, data, S)
             verbose && print(s, "-")  # Display progress
+        end
+
+        if last(results.time) - first(results.time) > S.max_time
+            break
         end
 
     end

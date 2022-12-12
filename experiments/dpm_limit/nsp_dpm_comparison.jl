@@ -86,7 +86,7 @@ function generate_data(config)
 end
 
 # ╔═╡ ccc338f5-baae-4009-ac9b-413b8b4aafbb
-# Data parameteres
+# Data parameters
 
 # ╔═╡ d98caa8b-0c20-4b41-b3e2-404061a6f575
 md"""
@@ -96,7 +96,11 @@ md"""
 # ╔═╡ 990a0e9f-2bb5-4cac-8de9-7fd68500a53e
 function fit_data(config)
 	# Unpack config
-    @unpack data_seed, cov_scale, model_seed, base_sampler_type, num_split_merge, max_temp, split_merge_gibbs_moves = config
+    @unpack data_seed, cov_scale, model_seed = config
+	@unpack base_sampler_type, max_num_samples, max_time = config
+
+	num_split_merge = get(config, :num_split_merge, 0) 
+	split_merge_gibbs_moves = get(config, :split_merge_gibbs_moves, 0)
 
 	# Load raw data
 	obs, _ = produce_or_load(
@@ -111,14 +115,16 @@ function fit_data(config)
 	# Choose base sampler
 	if base_sampler_type == "gibbs"
 		sampler = GibbsSampler(
-			num_samples=100, 
+			num_samples=max_num_samples,
+			max_time=max_time,
 			num_split_merge=num_split_merge, 
 			save_interval=1,
 			split_merge_gibbs_moves=split_merge_gibbs_moves,
 			verbose=false)
 	elseif base_sampler_type == "rj"
 		sampler = ReversibleJumpSampler(
-			num_samples=100, 
+			num_samples=max_num_samples, 
+			max_time=max_time,
 			birth_prob=0.5,
 			num_split_merge=num_split_merge, 
 			split_merge_gibbs_moves=split_merge_gibbs_moves)
@@ -126,16 +132,12 @@ function fit_data(config)
 		error("Invalid sampler type")
 	end
 
-	# Create sampler
-	temps = exp10.([range(max_temp, 0, length=50); zeros(50)])
-	annealed_sampler = Annealer(false, temps, :cluster_amplitude_var, sampler)
-
 	# Initialize model
  	model = GaussianNeymanScottModel(bounds, priors)
 	z0 = rand(1:length(data), length(data))
 
 	# Fit model
-	t = @elapsed results = annealed_sampler(
+	t = @elapsed results = sampler(
 		model, 
 		data,
 		initial_assignments=z0
@@ -150,20 +152,24 @@ end
 
 # ╔═╡ d05b5436-7713-48a3-b3f7-c23ecf1d3c8b
 base_config = Dict(
-	"data_seed" => 1,
-	"cov_scale" => 3e-3,
-	"model_seed" => [1, 2, 3],
-	"num_split_merge" => [0, 10],
-	"base_sampler_type" => ["rj", "gibbs"],
-	"max_temp" => 0.0,
-	"split_merge_gibbs_moves" => [0, 2],
+	# Required
+	:data_seed => 1,
+	:cov_scale => 1e-3,
+	:model_seed => [1, 2, 3],
+	:base_sampler_type => ["rj", "gibbs"],
+	:max_num_samples => 100_000,
+	:max_time => 120.0,
+
+	# Optional
+	:num_split_merge => [0, @onlyif(:base_sampler_type == "gibbs", 10)],
+	:split_merge_gibbs_moves => [0, @onlyif(:num_split_merge > 0, 1)],
 )
 
 # ╔═╡ 8a9d96cb-3baf-433c-a8d4-4d8b83a753fd
-data_seed = base_config["data_seed"]
+data_seed = base_config[:data_seed]
 
 # ╔═╡ ac60e75a-5691-469c-966b-fca70c2ee7fe
-cov_scale = base_config["cov_scale"]
+cov_scale = base_config[:cov_scale]
 
 # ╔═╡ 010719a8-877c-4701-a8b6-3f56111fd735
 observation_data, _ = produce_or_load(
@@ -210,6 +216,9 @@ begin
 
 end
 
+# ╔═╡ a0db0704-8e60-4ff5-b300-1eae870b433c
+dict_list(base_config)
+
 # ╔═╡ 939cb916-9067-4ba7-86dd-c734a933c6e0
 md"""
 ### NOTE: MAKE SURE FORCE IS FALSE
@@ -222,8 +231,9 @@ begin
 	
 	for c in dict_list(base_config)
 		# Load key parameters for naming
-		@unpack model_seed, base_sampler_type, num_split_merge = c
-		@show base_sampler_type, num_split_merge, model_seed
+		@unpack model_seed, base_sampler_type = c
+		@unpack num_split_merge, split_merge_gibbs_moves = c
+		@show base_sampler_type, num_split_merge, model_seed, split_merge_gibbs_moves
 		
 		# Run simulation		
 		r, _ = produce_or_load(
@@ -234,8 +244,10 @@ begin
 		)
 
 		# Save result
-		models[(base_sampler_type, num_split_merge, model_seed)] = r["model"]
-		results[(base_sampler_type, num_split_merge, model_seed)] = r["results"]
+		t = (base_sampler_type, num_split_merge, split_merge_gibbs_moves, model_seed)
+		models[t] = r["model"]
+		results[t] = r["results"]
+		@show last(get_runtime(r["results"]))
 	end
 end
 
@@ -254,18 +266,28 @@ bkgd_rate(r::NamedTuple) = [r.globals[k].bkgd_rate for k in 1:length(r.globals)]
 true_num_clusters = length(unique(assignments[assignments .!= -1]))
 
 # ╔═╡ 26f8ab35-6939-4017-9292-2d9fc8a558dd
-r_gibbs = [results[("gibbs", 10, c)] for c in 1:3]
+r_gibbs = [results[("gibbs", 10, 1, c)] for c in 1:3]
+
+# ╔═╡ f9048b2e-e744-4d49-905b-47ada5a84e54
+r_gibbs_sm0 = [results[("gibbs", 10, 0, c)] for c in 1:3]
 
 # ╔═╡ 098e22dc-223d-48d4-a865-bc6dfbedc39d
-r_rj = [results[("rj", 0, c)] for c in 1:3]
+r_rj = [results[("rj", 0, 0, c)] for c in 1:3]
 
 # ╔═╡ 73067b2c-df07-415f-9ccc-74c9e70dda64
-model_gibbs = [models[("gibbs", 0, c)] for c in 1:3]
+model_gibbs = [models[("gibbs", 0, 2, c)] for c in 1:3]
+
+# ╔═╡ 79860a04-8498-467f-a33a-dbf9f9195537
+let
+	foo = (a=1, b=2)
+	foo[:b]
+end
 
 # ╔═╡ 270448bf-3eea-4ce6-87f5-f986d2e05057
 let
-	plt = plot(size=(400, 200), ylim=(0, 2*true_num_clusters), title="Number of clusters during CG algorithm", xlabel="Sample")
-	[plot!(num_clusters(r_gibbs[k]), lw=2) for k in 1:3]
+	plt = plot(size=(400, 200), ylim=(0, 2*true_num_clusters), title="Number of clusters during CG algorithm", xlabel="Sample", xlim=(0, 1000))
+	#[plot!(num_clusters(r_gibbs[k]), lw=2) for k in 1:3]
+	[plot!(num_clusters(r_gibbs_sm0[k]), lw=1, c=:gray) for k in 1:3]
 	hline!([true_num_clusters], c=:Black, lw=2, label="True")
 	plt
 end
@@ -277,13 +299,13 @@ get_num_clusters(r) = num_clusters(r)
 plt_cgbd_ll = let
 	plot(size=(250, 200), dpi=200)
 	
-	plot!(
-		[append!([0.0], r.log_p) for r in r_gibbs] / length(data), 
-		lw=2, 
-		c=1, 
-		label=["CG" nothing nothing], 
-		alpha=0.7
-	)
+	# plot!(
+	# 	[append!([0.0], r.log_p) for r in r_gibbs] / length(data), 
+	# 	lw=2, 
+	# 	c=1, 
+	# 	label=["CG" nothing nothing], 
+	# 	alpha=0.7
+	# )
 	plot!(
 		[append!([0.0], r.log_p) for r in r_rj] / length(data), 
 		lw=2, 
@@ -306,22 +328,27 @@ end
 # ╔═╡ 6044fecb-479f-49d2-ab76-f30cdbae0691
 plt_cgbd_nc = let
 	plot(size=(250, 200), dpi=200)
-	plot!(
-		[get_runtime(r) for r in r_gibbs],
-		[get_num_clusters(r) for r in r_gibbs], 
-		lw=2, c=1, label=["CG" nothing nothing]
-	)
+	# plot!(
+	# 	[get_runtime(r) for r in r_gibbs_sm0],
+	# 	[get_num_clusters(r) for r in r_gibbs_sm0], 
+	# 	lw=2, c=1, label=["CG SM-Random" nothing nothing]
+	# )
+	# plot!(
+	# 	[get_runtime(r) for r in r_gibbs],
+	# 	[get_num_clusters(r) for r in r_gibbs], 
+	# 	lw=2, c=2, label=["CG SM-Gibbs" nothing nothing]
+	# )
 	plot!(
 		[get_runtime(r) for r in r_rj],
 		[get_num_clusters(r) for r in r_rj], 
-		lw=2, c=2, label=["RJ" nothing nothing], alpha=0.5
+		lw=2, c=3, label=["RJ" nothing nothing], alpha=0.5
 	)
 	hline!([true_num_clusters], c=:Black, lw=2, label="True")
 	
 	
 	plot!(
 		ylabel="Number of Clusters", xlabel="Seconds", legend=:topright,
-		ylim=(0, true_num_clusters*3), grid=false
+		ylim=(0, true_num_clusters*3), grid=false,
 	)
 end
 
@@ -397,7 +424,7 @@ let
 	plot!(t_cg[_x], get_psr(chain_num_clusters_cg, _x), lw=3, c=1)
 	plot!(t_rj[_x], get_psr(chain_num_clusters_rj, _x), lw=3, c=2)
 
-	plot(plt1, plt2, layout=(2, 1), xlims=(0, 60))
+	plot(plt1, plt2, layout=(2, 1), xlim=(0, 100))
 	
 end
 
@@ -419,8 +446,9 @@ end
 # ╠═10924047-b95e-41db-86ef-6f5c2cbea1a5
 # ╟─31444176-7908-4eef-865d-4096aed328cd
 # ╟─d98caa8b-0c20-4b41-b3e2-404061a6f575
-# ╟─990a0e9f-2bb5-4cac-8de9-7fd68500a53e
+# ╠═990a0e9f-2bb5-4cac-8de9-7fd68500a53e
 # ╠═d05b5436-7713-48a3-b3f7-c23ecf1d3c8b
+# ╠═a0db0704-8e60-4ff5-b300-1eae870b433c
 # ╟─939cb916-9067-4ba7-86dd-c734a933c6e0
 # ╠═6ee153f0-b83f-4f1f-8b09-8cf4ef023ba9
 # ╟─5af966fc-cf8e-4a54-9eb3-c84c445ad6f0
@@ -428,8 +456,10 @@ end
 # ╠═db0fa5a1-11f8-44fa-a17a-814c9ffcfcf8
 # ╠═058b8bb9-976a-4085-844c-1fa3fb5cb3a4
 # ╠═26f8ab35-6939-4017-9292-2d9fc8a558dd
+# ╠═f9048b2e-e744-4d49-905b-47ada5a84e54
 # ╠═098e22dc-223d-48d4-a865-bc6dfbedc39d
 # ╠═73067b2c-df07-415f-9ccc-74c9e70dda64
+# ╠═79860a04-8498-467f-a33a-dbf9f9195537
 # ╠═270448bf-3eea-4ce6-87f5-f986d2e05057
 # ╠═f20d5e13-172c-4955-82d5-0248ab48cad4
 # ╠═8b5b0efa-8be5-4b29-8531-1f52abb8ebf7
