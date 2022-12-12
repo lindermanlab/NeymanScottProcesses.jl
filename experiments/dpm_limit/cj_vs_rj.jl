@@ -155,10 +155,10 @@ base_config = Dict(
 	# Required
 	:data_seed => 1,
 	:cov_scale => 1e-3,
-	:model_seed => [1, 2, 3],
-	:base_sampler_type => ["rj", "gibbs"],
+	:model_seed => 1, #[1, 2, 3],
+	:base_sampler_type => "rj", #["rj", "gibbs"],
 	:max_num_samples => 100_000,
-	:max_time => 120.0,
+	:max_time => 240.0, #120.0,
 
 	# Optional
 	:num_split_merge => [0, @onlyif(:base_sampler_type == "gibbs", 10)],
@@ -251,20 +251,6 @@ begin
 	end
 end
 
-# ╔═╡ 5af966fc-cf8e-4a54-9eb3-c84c445ad6f0
-md"""
-## Plot results
-"""
-
-# ╔═╡ 6234628c-0274-4b23-9255-69e5f6878549
-num_clusters(r::NamedTuple) = [length(unique(r.assignments[k][r.assignments[k] .!= -1])) for k in 1:length(r.assignments)]
-
-# ╔═╡ db0fa5a1-11f8-44fa-a17a-814c9ffcfcf8
-bkgd_rate(r::NamedTuple) = [r.globals[k].bkgd_rate for k in 1:length(r.globals)]
-
-# ╔═╡ 058b8bb9-976a-4085-844c-1fa3fb5cb3a4
-true_num_clusters = length(unique(assignments[assignments .!= -1]))
-
 # ╔═╡ 26f8ab35-6939-4017-9292-2d9fc8a558dd
 r_gibbs = [results[("gibbs", 10, 1, c)] for c in 1:3]
 
@@ -275,18 +261,26 @@ r_gibbs_sm0 = [results[("gibbs", 10, 0, c)] for c in 1:3]
 r_rj = [results[("rj", 0, 0, c)] for c in 1:3]
 
 # ╔═╡ 73067b2c-df07-415f-9ccc-74c9e70dda64
-model_gibbs = [models[("gibbs", 0, 2, c)] for c in 1:3]
+model_gibbs = [models[("gibbs", 10, 1, c)] for c in 1:3]
 
-# ╔═╡ 79860a04-8498-467f-a33a-dbf9f9195537
-let
-	foo = (a=1, b=2)
-	foo[:b]
-end
+# ╔═╡ 5af966fc-cf8e-4a54-9eb3-c84c445ad6f0
+md"""
+## Plot results
+"""
+
+# ╔═╡ 058b8bb9-976a-4085-844c-1fa3fb5cb3a4
+true_num_clusters = length(unique(assignments[assignments .!= -1]))
+
+# ╔═╡ 6234628c-0274-4b23-9255-69e5f6878549
+num_clusters(r::NamedTuple) = [length(unique(r.assignments[k][r.assignments[k] .!= -1])) for k in 1:length(r.assignments)]
+
+# ╔═╡ db0fa5a1-11f8-44fa-a17a-814c9ffcfcf8
+bkgd_rate(r::NamedTuple) = [r.globals[k].bkgd_rate for k in 1:length(r.globals)]
 
 # ╔═╡ 270448bf-3eea-4ce6-87f5-f986d2e05057
 let
 	plt = plot(size=(400, 200), ylim=(0, 2*true_num_clusters), title="Number of clusters during CG algorithm", xlabel="Sample", xlim=(0, 1000))
-	#[plot!(num_clusters(r_gibbs[k]), lw=2) for k in 1:3]
+	[plot!(num_clusters(r_gibbs[k]), lw=2) for k in 1:3]
 	[plot!(num_clusters(r_gibbs_sm0[k]), lw=1, c=:gray) for k in 1:3]
 	hline!([true_num_clusters], c=:Black, lw=2, label="True")
 	plt
@@ -299,13 +293,13 @@ get_num_clusters(r) = num_clusters(r)
 plt_cgbd_ll = let
 	plot(size=(250, 200), dpi=200)
 	
-	# plot!(
-	# 	[append!([0.0], r.log_p) for r in r_gibbs] / length(data), 
-	# 	lw=2, 
-	# 	c=1, 
-	# 	label=["CG" nothing nothing], 
-	# 	alpha=0.7
-	# )
+	plot!(
+		[append!([0.0], r.log_p) for r in r_gibbs] / length(data), 
+		lw=2, 
+		c=1, 
+		label=["CG" nothing nothing], 
+		alpha=0.7
+	)
 	plot!(
 		[append!([0.0], r.log_p) for r in r_rj] / length(data), 
 		lw=2, 
@@ -333,11 +327,11 @@ plt_cgbd_nc = let
 	# 	[get_num_clusters(r) for r in r_gibbs_sm0], 
 	# 	lw=2, c=1, label=["CG SM-Random" nothing nothing]
 	# )
-	# plot!(
-	# 	[get_runtime(r) for r in r_gibbs],
-	# 	[get_num_clusters(r) for r in r_gibbs], 
-	# 	lw=2, c=2, label=["CG SM-Gibbs" nothing nothing]
-	# )
+	plot!(
+		[get_runtime(r) for r in r_gibbs],
+		[get_num_clusters(r) for r in r_gibbs], 
+		lw=2, c=2, label=["CG" nothing nothing]
+	)
 	plot!(
 		[get_runtime(r) for r in r_rj],
 		[get_num_clusters(r) for r in r_rj], 
@@ -384,10 +378,15 @@ md"""
 """
 
 # ╔═╡ ed090860-0352-4a63-9675-80a80e71cbeb
-make_chain(rs, f) = reshape(
-	hcat([f(r) for r in rs]...), 
-	:, 1, num_chains
-);
+function make_chain(rs, f)
+	data = [f(r) for r in rs]
+	n = minimum(length.(data))
+	
+	return reshape(
+		hcat([x[1:n] for x in data]...), 
+		:, 1, num_chains
+	)
+end
 
 # ╔═╡ b48c741d-b522-4314-8a95-ca5ff2089797
 chain_num_clusters_cg = make_chain(r_gibbs, num_clusters);
@@ -409,20 +408,21 @@ get_psr(chain, samples) = [gelmandiag(chain[1:s, :, :])[2][1] for s in samples]
 
 # ╔═╡ 1f0061bf-2699-4e6d-bcbe-2c5fb4287d7a
 let
-	_x = 50:10:size(chain_num_clusters_cg, 1)
+	_x1 = 50:10:size(chain_num_clusters_cg, 1)
+	_x2 = 50:10:size(chain_num_clusters_rj, 1)
 
-	t_cg = mean([get_runtime(rn) for rn in r_gibbs])
-	t_rj = mean([get_runtime(rn) for rn in r_rj])
+	t_cg = mean(make_chain(r_gibbs, get_runtime), dims=[2, 3])[:]
+	t_rj = mean(make_chain(r_rj, get_runtime), dims=[2, 3])[:]
 	
 	plt1 = plot(title="Effective Sample Size", legend=:topleft)
 
-	plot!(t_cg[_x], get_ess(chain_num_clusters_cg, _x), lw=3, label="CG + 10 split merge")
-	plot!(t_rj[_x], get_ess(chain_num_clusters_rj, _x), lw=3, label="RJ (no split merge)")
+	plot!(t_cg[_x1], get_ess(chain_num_clusters_cg, _x1), lw=3, label="CG + 10 split merge")
+	plot!(t_rj[_x2], get_ess(chain_num_clusters_rj, _x2), lw=3, label="RJ (no split merge)")
 
 	plt2 = plot(title="Potential Scale Reduction", ylim=(0.9, 1.1))
 	hline!([1], color=:black, lw=2)
-	plot!(t_cg[_x], get_psr(chain_num_clusters_cg, _x), lw=3, c=1)
-	plot!(t_rj[_x], get_psr(chain_num_clusters_rj, _x), lw=3, c=2)
+	plot!(t_cg[_x1], get_psr(chain_num_clusters_cg, _x1), lw=3, c=1)
+	plot!(t_rj[_x2], get_psr(chain_num_clusters_rj, _x2), lw=3, c=2)
 
 	plot(plt1, plt2, layout=(2, 1), xlim=(0, 100))
 	
@@ -432,7 +432,7 @@ end
 # ╠═dd0f7868-4a6c-4def-b17c-1f7835cba864
 # ╠═98d77a92-3744-4df3-a367-df22f3612e9d
 # ╠═acc93e48-e012-11eb-048e-35c010d6acee
-# ╟─5de272b0-931a-4851-86ac-4249860a9922
+# ╠═5de272b0-931a-4851-86ac-4249860a9922
 # ╟─be352c60-88b9-421a-8fd7-7d34e19665e6
 # ╟─d1d53b74-3e7b-44eb-b0e7-1e4b612edeb2
 # ╠═b0114a0b-58e4-44d2-82db-3a6131435b32
@@ -444,26 +444,25 @@ end
 # ╠═010719a8-877c-4701-a8b6-3f56111fd735
 # ╠═b100f88d-5158-4099-a7d9-6e9d433c2f14
 # ╠═10924047-b95e-41db-86ef-6f5c2cbea1a5
-# ╟─31444176-7908-4eef-865d-4096aed328cd
+# ╠═31444176-7908-4eef-865d-4096aed328cd
 # ╟─d98caa8b-0c20-4b41-b3e2-404061a6f575
-# ╠═990a0e9f-2bb5-4cac-8de9-7fd68500a53e
+# ╟─990a0e9f-2bb5-4cac-8de9-7fd68500a53e
 # ╠═d05b5436-7713-48a3-b3f7-c23ecf1d3c8b
 # ╠═a0db0704-8e60-4ff5-b300-1eae870b433c
 # ╟─939cb916-9067-4ba7-86dd-c734a933c6e0
 # ╠═6ee153f0-b83f-4f1f-8b09-8cf4ef023ba9
-# ╟─5af966fc-cf8e-4a54-9eb3-c84c445ad6f0
-# ╠═6234628c-0274-4b23-9255-69e5f6878549
-# ╠═db0fa5a1-11f8-44fa-a17a-814c9ffcfcf8
-# ╠═058b8bb9-976a-4085-844c-1fa3fb5cb3a4
 # ╠═26f8ab35-6939-4017-9292-2d9fc8a558dd
 # ╠═f9048b2e-e744-4d49-905b-47ada5a84e54
 # ╠═098e22dc-223d-48d4-a865-bc6dfbedc39d
 # ╠═73067b2c-df07-415f-9ccc-74c9e70dda64
-# ╠═79860a04-8498-467f-a33a-dbf9f9195537
+# ╟─5af966fc-cf8e-4a54-9eb3-c84c445ad6f0
+# ╠═058b8bb9-976a-4085-844c-1fa3fb5cb3a4
+# ╠═6234628c-0274-4b23-9255-69e5f6878549
+# ╠═db0fa5a1-11f8-44fa-a17a-814c9ffcfcf8
 # ╠═270448bf-3eea-4ce6-87f5-f986d2e05057
 # ╠═f20d5e13-172c-4955-82d5-0248ab48cad4
-# ╠═8b5b0efa-8be5-4b29-8531-1f52abb8ebf7
-# ╠═6044fecb-479f-49d2-ab76-f30cdbae0691
+# ╟─8b5b0efa-8be5-4b29-8531-1f52abb8ebf7
+# ╟─6044fecb-479f-49d2-ab76-f30cdbae0691
 # ╠═b301bb90-2178-4d49-bca2-e1f7ce59975f
 # ╟─27a3553e-9211-45b8-b963-55c4511e6917
 # ╟─d83f7bf8-552a-4c1f-ab09-6c394d2deb4e

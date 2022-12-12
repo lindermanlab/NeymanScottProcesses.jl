@@ -1,12 +1,17 @@
 ### A Pluto.jl notebook ###
-# v0.19.5
+# v0.19.14
 
 using Markdown
 using InteractiveUtils
 
+# ╔═╡ d24eb4eb-3f62-4583-a409-ee83158b3f3e
+using DrWatson
+
+# ╔═╡ 65673e1c-3e18-491a-9177-41073402cc48
+@quickactivate
+
 # ╔═╡ fed40468-df48-11eb-13bc-95f2af985a19
 begin
-    using Pkg; Pkg.activate("."); Pkg.instantiate();
 	using LinearAlgebra
 	using Random
 	using Distributions
@@ -14,9 +19,13 @@ begin
 	using NeymanScottProcesses
 	
 	using Base.Iterators: product
-	
-	theme(:default, label=nothing, tickfont=(:Times, 8), guidefont=(:Times, 8))
 end
+
+# ╔═╡ 30adbdb7-adf7-4eb3-9082-39f67a1f7630
+using StatsPlots
+
+# ╔═╡ db1934ae-2e01-4643-a10a-e189bab566c0
+theme(:default, label=nothing, tickfont=(:Times, 8), guidefont=(:Times, 8))
 
 # ╔═╡ 8d4761b5-8b0b-432f-8561-3224c9233946
 md"
@@ -118,6 +127,25 @@ md"
 ### Plot results
 "
 
+# ╔═╡ 1f4b49f2-0588-490a-9477-8ebbfcbc910b
+function make_data_plot(data_x, data_y)
+	plt = plot(xticks=nothing, yticks=nothing, xlim=(0, 1), ylim=(0, 1),
+	frame=:box)
+	scatter!(data_x, data_y, c=:black, ms=1.5, alpha=0.5)
+	return plt
+end
+
+# ╔═╡ 629022a0-5d77-46bd-84d9-bf87dada2ff8
+function plot_clusters!(plt, clusters)
+	for C in clusters
+		covellipse!(
+			plt, C.sampled_position, C.sampled_covariance, 
+			n_std=3, aspect_ratio=1, 
+			alpha=0.3, c=1
+		)
+	end
+end
+
 # ╔═╡ 4c622d22-496f-43c9-bda8-0853f6eddc55
 begin
 	plts = []
@@ -138,12 +166,15 @@ begin
 		]...)
 	
 		# Plot data
-		plt = plot(xticks=nothing, yticks=nothing, aspect_ratio=:equal)
-		plot!(xlim=(-0.1, 1.1), ylim=(-0.1, 1.1))
-		scatter!(
-			[x[1] for x in samples], [x[2] for x in samples], 
-			ms=4, msw=0.1, c=assignments
-		)
+		plt = make_data_plot([x[1] for x in samples], [x[2] for x in samples])
+
+		# Plot clusters
+		cluster_params = []
+		for k in realized_clusters
+			C = (sampled_position=clusters[k].μ, sampled_covariance=2*clusters[k].Σ)
+			push!(cluster_params, C)
+		end
+		plot_clusters!(plt, cluster_params)
 		
 		# Add labels if needed
 		ylabel = (i == 1) ? L"\gamma = %$γ" : ""
@@ -161,7 +192,11 @@ begin
 end
 
 # ╔═╡ Cell order:
+# ╠═d24eb4eb-3f62-4583-a409-ee83158b3f3e
+# ╠═65673e1c-3e18-491a-9177-41073402cc48
 # ╠═fed40468-df48-11eb-13bc-95f2af985a19
+# ╠═30adbdb7-adf7-4eb3-9082-39f67a1f7630
+# ╠═db1934ae-2e01-4643-a10a-e189bab566c0
 # ╟─8d4761b5-8b0b-432f-8561-3224c9233946
 # ╠═dc9d79e6-bf85-48d3-b02b-e340ee7d6ac7
 # ╟─7ba7277a-5a10-4556-8a76-ded6b050a48a
@@ -174,4 +209,6 @@ end
 # ╟─9388f284-9134-4fa9-abb5-c7b926a54c6c
 # ╠═0494486f-84db-41ee-9d13-dfb4560a25b1
 # ╟─bf928bd7-351b-4a12-b9b5-619df91ffd96
+# ╠═1f4b49f2-0588-490a-9477-8ebbfcbc910b
+# ╠═629022a0-5d77-46bd-84d9-bf87dada2ff8
 # ╠═4c622d22-496f-43c9-bda8-0853f6eddc55
