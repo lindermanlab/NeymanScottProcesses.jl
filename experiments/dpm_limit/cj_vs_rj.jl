@@ -101,6 +101,7 @@ function fit_data(config)
 
 	num_split_merge = get(config, :num_split_merge, 0) 
 	split_merge_gibbs_moves = get(config, :split_merge_gibbs_moves, 0)
+	num_jump_move = get(config, :num_jump_move, 10)
 
 	# Load raw data
 	obs, _ = produce_or_load(
@@ -127,6 +128,7 @@ function fit_data(config)
 			max_time=max_time,
 			birth_prob=0.5,
 			num_split_merge=num_split_merge, 
+			num_move=num_jump_move,
 			split_merge_gibbs_moves=split_merge_gibbs_moves)
 	else
 		error("Invalid sampler type")
@@ -135,6 +137,7 @@ function fit_data(config)
 	# Initialize model
  	model = GaussianNeymanScottModel(bounds, priors)
 	z0 = rand(1:length(data), length(data))
+	# z0 = assignments  # Check that sampler is unbiased
 
 	# Fit model
 	t = @elapsed results = sampler(
@@ -155,10 +158,11 @@ base_config = Dict(
 	# Required
 	:data_seed => 1,
 	:cov_scale => 1e-3,
-	:model_seed => 1, #[1, 2, 3],
-	:base_sampler_type => "rj", #["rj", "gibbs"],
-	:max_num_samples => 100_000,
-	:max_time => 240.0, #120.0,
+	:model_seed => [1, 2, 3],
+	:base_sampler_type => ["rj", "gibbs"],
+	:max_num_samples => 10_000_000,
+	:max_time => 10 * 60.0,
+	:num_jump_move => 5,
 
 	# Optional
 	:num_split_merge => [0, @onlyif(:base_sampler_type == "gibbs", 10)],
@@ -240,7 +244,7 @@ begin
 			datadir("fit"),
 			c,
 			fit_data;
-			force=false,
+			force=true,
 		)
 
 		# Save result
@@ -273,6 +277,17 @@ true_num_clusters = length(unique(assignments[assignments .!= -1]))
 
 # ╔═╡ 6234628c-0274-4b23-9255-69e5f6878549
 num_clusters(r::NamedTuple) = [length(unique(r.assignments[k][r.assignments[k] .!= -1])) for k in 1:length(r.assignments)]
+
+# ╔═╡ 54bff75b-6133-4481-9b8b-bddb3818675a
+let
+	r = first(results)[2]
+	
+	# x = get_runtime(r)
+	plot(num_clusters(r), lw=2)
+	hline!([true_num_clusters], lw=2, alpha=0.5)
+	
+	plot!(size=(600, 250), ylim=(0, 3*true_num_clusters))
+end
 
 # ╔═╡ db0fa5a1-11f8-44fa-a17a-814c9ffcfcf8
 bkgd_rate(r::NamedTuple) = [r.globals[k].bkgd_rate for k in 1:length(r.globals)]
@@ -444,13 +459,14 @@ end
 # ╠═010719a8-877c-4701-a8b6-3f56111fd735
 # ╠═b100f88d-5158-4099-a7d9-6e9d433c2f14
 # ╠═10924047-b95e-41db-86ef-6f5c2cbea1a5
-# ╠═31444176-7908-4eef-865d-4096aed328cd
+# ╟─31444176-7908-4eef-865d-4096aed328cd
 # ╟─d98caa8b-0c20-4b41-b3e2-404061a6f575
 # ╟─990a0e9f-2bb5-4cac-8de9-7fd68500a53e
 # ╠═d05b5436-7713-48a3-b3f7-c23ecf1d3c8b
 # ╠═a0db0704-8e60-4ff5-b300-1eae870b433c
 # ╟─939cb916-9067-4ba7-86dd-c734a933c6e0
 # ╠═6ee153f0-b83f-4f1f-8b09-8cf4ef023ba9
+# ╠═54bff75b-6133-4481-9b8b-bddb3818675a
 # ╠═26f8ab35-6939-4017-9292-2d9fc8a558dd
 # ╠═f9048b2e-e744-4d49-905b-47ada5a84e54
 # ╠═098e22dc-223d-48d4-a865-bc6dfbedc39d
