@@ -165,15 +165,15 @@ base_config = Dict(
 	# Required
 	:data_seed => 1,
 	:cov_scale => 1e-3,
-	:model_seed => 1, #[1, 2, 3],
-	:base_sampler_type => "gibbs", #["rj", "gibbs"],
+	:model_seed => [1, 2, 3],
+	:base_sampler_type => ["rj", "gibbs"],
 	:max_num_samples => 10_000_000,
-	:max_time => 20.0, #10 * 60.0,
+	:max_time => 10 * 60.0,
 	:num_jump_move => 10,
 
 	# Optional
-	:num_split_merge => 10, #[0, @onlyif(:base_sampler_type == "gibbs", 10)],
-	:split_merge_gibbs_moves => 1, #[0, @onlyif(:num_split_merge > 0, 1)],
+	:num_split_merge => [0, @onlyif(:base_sampler_type == "gibbs", 10)],
+	:split_merge_gibbs_moves => [0, @onlyif(:num_split_merge > 0, 1)],
 )
 
 # ╔═╡ 8a9d96cb-3baf-433c-a8d4-4d8b83a753fd
@@ -251,7 +251,7 @@ begin
 			datadir("fit"),
 			c,
 			fit_data;
-			force=true,
+			force=false,
 		)
 
 		# Save result
