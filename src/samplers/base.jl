@@ -22,7 +22,7 @@ abstract type AbstractSampler end
 
 valid_save_keys(::AbstractSampler) = (:log_p, :log_joint, :assignments, :clusters, :globals, :time)
 
-DEFAULT_KEYS = (:log_p, :log_joint, :time)
+DEFAULT_KEYS = (:log_p, :log_joint, :time, :assignments)
 
 
 # ===

@@ -166,14 +166,14 @@ base_config = Dict(
 	:data_seed => 1,
 	:cov_scale => 1e-3,
 	:model_seed => 1, #[1, 2, 3],
-	:base_sampler_type => "rj", #["rj", "gibbs"],
+	:base_sampler_type => "gibbs", #["rj", "gibbs"],
 	:max_num_samples => 10_000_000,
 	:max_time => 20.0, #10 * 60.0,
-	:num_jump_move => 5,
+	:num_jump_move => 10,
 
 	# Optional
-	:num_split_merge => [0, @onlyif(:base_sampler_type == "gibbs", 10)],
-	:split_merge_gibbs_moves => [0, @onlyif(:num_split_merge > 0, 1)],
+	:num_split_merge => 10, #[0, @onlyif(:base_sampler_type == "gibbs", 10)],
+	:split_merge_gibbs_moves => 1, #[0, @onlyif(:num_split_merge > 0, 1)],
 )
 
 # ╔═╡ 8a9d96cb-3baf-433c-a8d4-4d8b83a753fd
@@ -322,14 +322,6 @@ generative_log_like = let
 	lj += NeymanScottProcesses.log_p_latents(m)
 	
 	ll / length(data)
-end
-
-# ╔═╡ e006626e-2a25-4ed2-97bc-e1eca7e91d8c
-let
-	r = first(results)[2]
-	@show length(r.log_p)
-	plot(r.log_p / length(data))
-	hline!([generative_log_like])
 end
 
 # ╔═╡ 8b5b0efa-8be5-4b29-8531-1f52abb8ebf7
@@ -556,7 +548,6 @@ end
 # ╠═990a0e9f-2bb5-4cac-8de9-7fd68500a53e
 # ╠═d05b5436-7713-48a3-b3f7-c23ecf1d3c8b
 # ╠═a0db0704-8e60-4ff5-b300-1eae870b433c
-# ╠═e006626e-2a25-4ed2-97bc-e1eca7e91d8c
 # ╟─939cb916-9067-4ba7-86dd-c734a933c6e0
 # ╠═6ee153f0-b83f-4f1f-8b09-8cf4ef023ba9
 # ╠═26f8ab35-6939-4017-9292-2d9fc8a558dd
