@@ -144,7 +144,7 @@ function fit_data(config)
 	# Initialize model
  	model = GaussianNeymanScottModel(bounds, priors)
 	z0 = rand(1:length(data), length(data))
-	# z0 = assignments  # Check that sampler is unbiased
+	z0 = assignments  # Check that sampler is unbiased
 
 	# Fit model
 	t = @elapsed results = sampler(
@@ -165,15 +165,15 @@ base_config = Dict(
 	# Required
 	:data_seed => 1,
 	:cov_scale => 1e-3,
-	:model_seed => [1, 2, 3],
-	:base_sampler_type => ["rj", "gibbs"],
+	:model_seed => 1,  # [1, 2, 3],
+	:base_sampler_type => "rj",  # ["rj", "gibbs"],
 	:max_num_samples => 10_000_000,
-	:max_time => 10 * 60.0,
+	:max_time => 20.0,  # 10 * 60.0,
 	:num_jump_move => 10,
 
 	# Optional
-	:num_split_merge => [0, @onlyif(:base_sampler_type == "gibbs", 10)],
-	:split_merge_gibbs_moves => [0, @onlyif(:num_split_merge > 0, 1)],
+	:num_split_merge => 0,  #[0, @onlyif(:base_sampler_type == "gibbs", 10)],
+	:split_merge_gibbs_moves => 0,  #[0, @onlyif(:num_split_merge > 0, 1)],
 )
 
 # ╔═╡ 8a9d96cb-3baf-433c-a8d4-4d8b83a753fd
@@ -191,6 +191,12 @@ observation_data, _ = produce_or_load(
 
 # ╔═╡ b100f88d-5158-4099-a7d9-6e9d433c2f14
 @unpack priors, gen_model, data, clusters, assignments = observation_data;
+
+# ╔═╡ d109dfb5-de40-4391-a1b2-2f0b05507807
+length(clusters)
+
+# ╔═╡ 61a667d7-97c4-45a3-ab6e-200b04a1d1ac
+length(unique(assignments[assignments .!= -1]))
 
 # ╔═╡ 10924047-b95e-41db-86ef-6f5c2cbea1a5
 length(data)
@@ -230,9 +236,14 @@ end
 # ╔═╡ a0db0704-8e60-4ff5-b300-1eae870b433c
 length(dict_list(base_config))
 
+# ╔═╡ 9f2028b3-7959-4e23-9e5a-b34066fe1885
+num_clusters_all(r) = [length(ri) for ri in r.clusters]
+
 # ╔═╡ 939cb916-9067-4ba7-86dd-c734a933c6e0
 md"""
 #### NOTE: MAKE SURE FORCE IS FALSE
+
+Or else prepare for a very long run.
 """
 
 # ╔═╡ 6ee153f0-b83f-4f1f-8b09-8cf4ef023ba9
@@ -251,7 +262,7 @@ begin
 			datadir("fit"),
 			c,
 			fit_data;
-			force=false,
+			force=true,
 		)
 
 		# Save result
@@ -324,6 +335,22 @@ generative_log_like = let
 	ll / length(data)
 end
 
+# ╔═╡ c5f56d55-1200-498f-a4ec-fe91da66ad06
+let
+	r = first(results)[2]
+
+	plt1 = plot(r.log_p / length(data), title="Log Likelihood")
+	hline!([generative_log_like])
+
+	plt2 = plot(num_clusters(r), title="Number of Clusters", ylim=(0, 3*true_num_clusters))
+	plot!(num_clusters_all(r))
+	hline!([true_num_clusters], c=:black, lw=2, label="true")
+	hline!([10], c=:green, lw=2, label="prior")
+	plot!(legend=:outertopright)
+
+	plot(plt1, plt2, layout=(1, 2), size=(600, 200))
+end
+
 # ╔═╡ 8b5b0efa-8be5-4b29-8531-1f52abb8ebf7
 plt_loglike = let
 	plt = plot(size=(350, 150))
@@ -342,7 +369,7 @@ plt_loglike = let
 	hline!([generative_log_like], lw=3, c=:black, ls=:dash, label="True", alpha=0.5)
 	
 	plot!(
-		title="Mean Log Likelihood", 
+		title="Log Likelihood", 
 		xlabel="Time (seconds)",
 		xlim=(-3, 60.0),
 		ylim=(4, 8),
@@ -498,7 +525,7 @@ md"""
 """
 
 # ╔═╡ 1f0061bf-2699-4e6d-bcbe-2c5fb4287d7a
-let
+final_plt = let
 	p1 = deepcopy(plt_loglike)
 	p2 = deepcopy(plt_num_cluster)
 	p3 = deepcopy(plt_psr)
@@ -514,7 +541,7 @@ let
 	plot!(p2, legend=false)
 	plot!(p3, legend=false)
 	
-	plot(
+	plt = plot(
 		p1, p2, p3, p4,
 		layout=(1, 4), 
 		xlim=(-2, 120),
@@ -523,8 +550,18 @@ let
 		bottom_margin=4Plots.mm,
 		dpi=200,
 	)
-	
-end
+
+	annotate!(plt[1], 125, 8.5, text("A", "Times Bold", 12))
+	annotate!(plt[2], 125, 57, text("B", "Times Bold", 12))
+	annotate!(plt[3], 125, 2.12, text("C", "Times Bold", 12))
+	annotate!(plt[4], 125, 360, text("D", "Times Bold", 12))
+
+
+	plt
+end;
+
+# ╔═╡ ff85f399-3759-4c6e-8f32-66d29fdbed87
+save_and_show(final_plt, "cg_vs_rj")
 
 # ╔═╡ Cell order:
 # ╠═dd0f7868-4a6c-4def-b17c-1f7835cba864
@@ -542,12 +579,16 @@ end
 # ╠═ac60e75a-5691-469c-966b-fca70c2ee7fe
 # ╠═010719a8-877c-4701-a8b6-3f56111fd735
 # ╠═b100f88d-5158-4099-a7d9-6e9d433c2f14
+# ╠═d109dfb5-de40-4391-a1b2-2f0b05507807
+# ╠═61a667d7-97c4-45a3-ab6e-200b04a1d1ac
 # ╠═10924047-b95e-41db-86ef-6f5c2cbea1a5
 # ╟─31444176-7908-4eef-865d-4096aed328cd
-# ╠═d98caa8b-0c20-4b41-b3e2-404061a6f575
-# ╠═990a0e9f-2bb5-4cac-8de9-7fd68500a53e
+# ╟─d98caa8b-0c20-4b41-b3e2-404061a6f575
+# ╟─990a0e9f-2bb5-4cac-8de9-7fd68500a53e
 # ╠═d05b5436-7713-48a3-b3f7-c23ecf1d3c8b
 # ╠═a0db0704-8e60-4ff5-b300-1eae870b433c
+# ╠═9f2028b3-7959-4e23-9e5a-b34066fe1885
+# ╠═c5f56d55-1200-498f-a4ec-fe91da66ad06
 # ╟─939cb916-9067-4ba7-86dd-c734a933c6e0
 # ╠═6ee153f0-b83f-4f1f-8b09-8cf4ef023ba9
 # ╠═26f8ab35-6939-4017-9292-2d9fc8a558dd
@@ -590,3 +631,4 @@ end
 # ╠═2dd7706c-7445-46b9-a395-d872b1ceceee
 # ╟─996ce4ab-143d-4ed3-a54e-b75fac4126b0
 # ╠═1f0061bf-2699-4e6d-bcbe-2c5fb4287d7a
+# ╠═ff85f399-3759-4c6e-8f32-66d29fdbed87

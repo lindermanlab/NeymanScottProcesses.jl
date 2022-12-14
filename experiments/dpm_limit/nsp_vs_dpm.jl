@@ -373,14 +373,26 @@ md"""
 
 # ╔═╡ 4fb64ab7-b329-451c-b4ff-9ae80ff6ae59
 begin	
+
     plt_everything = plot(
-        plt_true_data, plt_fit_data_nsp, plt_fit_data_dpm, 
-        plt_acc, plt_num_clusters, 
+        deepcopy(plt_true_data), 
+		deepcopy(plt_fit_data_nsp), 
+		deepcopy(plt_fit_data_dpm), 
+        deepcopy(plt_acc), 
+		deepcopy(plt_num_clusters), 
 		top_margin=5Plots.mm,
         layout=(1, 5), size=(650, 150), dpi=200
     )
+
+	y = 1.1
+	annotate!(plt_everything[1], 0.0, y, text("A", "Times Bold", 12))
+	annotate!(plt_everything[2], 0.0, y, text("B", "Times Bold", 12))
+	annotate!(plt_everything[3], 0.0, y, text("C", "Times Bold", 12))
+	annotate!(plt_everything[4], 0.55, 1.0035, text("D", "Times Bold", 12))
+	annotate!(plt_everything[5], 0.5, 93, text("E", "Times Bold", 12))
+
     
-    save_and_show(plt_everything, "full")
+    save_and_show(plt_everything, "nsp_vs_dpm")
 end
 
 # ╔═╡ Cell order:

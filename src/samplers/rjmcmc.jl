@@ -178,7 +178,6 @@ function birth_move!(model, data, old_ll, birth_prob, K_total)
     C_new = clusters(model)[k_new]
     gibbs_sample_cluster_params!(C_new, model)
     
-
     # [2] Compute acceptance probability
     # log_p_accept = (log_like_new - log_like_old) 
     #               + (log_prior_new - log_prior_old) 
@@ -188,15 +187,18 @@ function birth_move!(model, data, old_ll, birth_prob, K_total)
     # [2A] Log likelihood ratio
     new_ll = log_like(model, data)  # p(data | {X ∪ C_new})
 
-    log_p_accept += new_ll - old_ll
+    # log_p_accept += new_ll - old_ll
 
     # [2B] Log prior ratio
     # Note: q_birth draws cluster marks ϕ uniformly from the prior
     # So since p_new(ϕ | ...) = q_birth(ϕ | ...), these terms cancel
-    ℙ_K = Poisson(cluster_rate(model.priors))
 
-    old_lp = logpdf(ℙ_K, K_total)  # p(X)
-    new_lp = logpdf(ℙ_K, K_total + 1)  # p(X ∪ C_new)
+    # ℙ_K = Poisson(cluster_rate(model.priors))
+    # old_lp = logpdf(ℙ_K, K_total)  # p(X)
+    # new_lp = logpdf(ℙ_K, K_total + 1)  # p(X ∪ C_new)
+
+    old_lp = 0.0  # p(X)
+    new_lp = log(cluster_rate(model.priors))  # p(X ∪ C_new)
 
     log_p_accept += new_lp - old_lp
 
@@ -243,15 +245,18 @@ function death_move!(model, data, old_ll, birth_prob, K_total)
     # [2B] Log prior ratio
     # Note: q_birth draws cluster marks ϕ uniformly from the prior
     # So since p_new(ϕ | ...) = q_birth(ϕ | ...), these terms cancel
-    ℙ_K = Poisson(cluster_rate(model.priors))
+    
+    # ℙ_K = Poisson(cluster_rate(model.priors))
+    # old_lp = logpdf(ℙ_K, K_total)  # p(X)
+    # new_lp = logpdf(ℙ_K, K_total - 1)  # p(X \ C)
 
-    old_lp = logpdf(ℙ_K, K_total + 1)  # p(X)
-    new_lp = logpdf(ℙ_K, K_total)  # p(X \ C_new)
+    old_lp = log(cluster_rate(model.priors))  # p(X)
+    new_lp = 0.0  # p(X \ C)
 
     log_p_accept += new_lp - old_lp
 
     # [2C] Proposal probability
-    q_fwd = log(1 - birth_prob) - log(K_total + 1)  # Uniform death proposals
+    q_fwd = log(1 - birth_prob) - log(K_total)  # Uniform death proposals
     q_rev = log(birth_prob)  # Other terms cancel with prior(ϕ)
 
     log_p_accept += q_rev - q_fwd
