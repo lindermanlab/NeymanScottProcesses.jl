@@ -280,7 +280,7 @@ begin
     plt_num_clusters = plot(title="Number of Clusters")
     plot!(xticks=(1:2, ["NSP", "DPM"]))
     plot!(size=(200, 200))
-    #plot!(ylim=(0, Inf))
+    plot!(ylim=(0, 85))
 	plot!(yticks=0:20:100)
     plot!(legend=:topleft, grid=false)
 
@@ -334,7 +334,7 @@ md"""
 
 # ╔═╡ cd0c0109-0dee-4da8-b9c0-282ec378bf63
 begin
-    Random.seed!(11)
+    Random.seed!(10)
 
     acc_nsp = append!([[
         1 - sum(abs, cm_true - cooccupancy_matrix(ω)) / length(cm_true)
@@ -349,7 +349,10 @@ begin
     acc_y = [acc_nsp; acc_dpm]
     
     # Set up plot
-    plt_acc = plot(title="Co-occupancy Accuracy", xticks=(1:2, ["NSP", "DPM"]))
+    plt_acc = plot(
+		title="Co-occupancy Accuracy", 
+		xticks=(1:2, ["NSP", "DPM"])
+	)
     plot!(size=(200, 200))
 	plot!(grid=false)
     
@@ -373,7 +376,8 @@ begin
     plt_everything = plot(
         plt_true_data, plt_fit_data_nsp, plt_fit_data_dpm, 
         plt_acc, plt_num_clusters, 
-        layout=(1, 5), size=(650, 130), dpi=200
+		top_margin=5Plots.mm,
+        layout=(1, 5), size=(650, 150), dpi=200
     )
     
     save_and_show(plt_everything, "full")

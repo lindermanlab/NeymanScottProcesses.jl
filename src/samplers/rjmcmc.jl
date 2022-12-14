@@ -3,7 +3,7 @@ VALID_BIRTH_PROPOSALS = [:uniform, :datapoint]
 Base.@kwdef struct ReversibleJumpSampler <: AbstractSampler
     verbose::Bool = false
     save_interval::Int = 1
-    save_keys::Union{Symbol, Tuple{Vararg{Symbol}}} = (:log_p, :assignments, :clusters, :globals, :time)
+    save_keys::Union{Symbol, Tuple{Vararg{Symbol}}} = DEFAULT_KEYS
     num_samples::Int = 100
     birth_prob::Union{Real, Function} = 0.5
     birth_proposal::Symbol = :uniform
@@ -49,14 +49,15 @@ function (S::ReversibleJumpSampler)(
                 birth_prob=get_birth_prob(S, s), proposal=S.birth_proposal)
         end
 
+        # [2] Sample parent assignments.   
+
         # We need to reset all the assignments and clusters sufficient stats
         assignments .= -1
-        # Reset all clusters to empty.
         for k in model.clusters.indices
             reset!(model.clusters[k])
         end
 
-        # [2] Sample parent assignments.        
+        # Now sample the assignments
         for i in data_order
             # Remove i-th datapoint from its current cluster.
             if assignments[i] != -1
@@ -158,6 +159,72 @@ function get_num_empty(model::NeymanScottModel)
     return length(get_empty_clusters(model))
 end
 
+function birth_move!(model, data, old_ll, birth_prob)
+    
+    # [1] Make proposal
+    k_new = add_cluster!(clusters(model))
+    C_new = clusters(model)[k_new]
+    gibbs_sample_cluster_params!(C_new, model)
+    
+
+    # [2] Compute acceptance probability
+    # log_p_accept = (log_like_new - log_like_old) 
+    #               + (log_prior_new - log_prior_old) 
+    #               + (log_q_rev - log_q_fwd) 
+    #               + (log(1 - birth_prob) - log(birth_prob))
+    log_p_accept = 0.0
+
+    # [2A] Log likelihood ratio
+    new_ll = log_like(model, data)  # p(data | {X ∪ C_new})
+    log_p_accept += new_ll - old_ll
+
+    # [2B] Log prior ratio
+    old_lp = logpdf(ℙ_K, K_total)
+
+    ℙ_K = Poisson(cluster_rate(model.priors))
+    ℙ_A = cluster_amplitude(model.priors)
+
+    
+    
+    
+    
+    # p(X ∪ C_new)
+    log_p_accept += (
+        logpdf(ℙ_K, K_total+1) 
+        + logpdf(ℙ_A, C_new.sampled_amplitude)  # Amplitude
+        - log(volume(model))  # Position
+    )
+
+    # 1 / p(X)
+    log_p_accept -= logpdf(ℙ_K, K_total)
+
+    # q_death(C_new ; X ∪ C_new)  <-- Uniform death proposals
+    log_p_accept += -log(K_total + 1)
+
+    # 1 / q_birth(C_new ; X)
+    # q_birth draws cluster marks ϕ uniformly from the prior
+    # So since p_new(ϕ | ...) = q_birth(ϕ | ...), these terms cancel
+    # Only the amplitude and position terms need to be removed
+    log_q_birth = logpdf(posterior(0, ℙ_A), C_new.sampled_amplitude)        
+    log_q_birth += -log(volume(model))
+
+    log_p_accept -= log_q_birth
+
+    # (1 - birth_prob) / (birth_prob)
+    log_p_accept += log(1 - birth_prob) - log(birth_prob)
+
+    # Accept or reject
+    # If rejected, remove the cluster
+    if log(rand()) < log_p_accept
+        # Accept the cluster!
+        # @show "Birth accepted"
+        return k_new
+    else
+        remove_cluster!(clusters(model), k_new)
+        return -1
+    end
+end
+
 function birth_death!(
     model::NeymanScottModel, 
     data::Vector{<: AbstractDatapoint}; 
@@ -169,9 +236,11 @@ function birth_death!(
     σ = 0.1  #maximum(bounds) / cluster_rate(model.priors)
     ℙ_x = MultivariateNormal(length(bounds), σ)
 
-    empty_clusters = get_empty_clusters(model)
-    K_empty = get_num_empty(model)
+    empty_clusters = [k for k in model.clusters.indices]  #get_empty_clusters(model)
     K_total = num_clusters(model)
+
+    log_p_accept = 0.0
+    log_p_accept -= log_like(model, data)
 
     # Propose a birth
     if rand() < birth_prob
@@ -188,15 +257,17 @@ function birth_death!(
 
         # Compute acceptance probability
         # p_accept = (p_new / p_old) * (q_death / q_birth) * (1 - birth_prob) / (birth_prob)
-        
         ℙ_K = Poisson(cluster_rate(model.priors))
         ℙ_A = cluster_amplitude(model.priors)
+
+        # p(data | {X ∪ C_new})
+        log_p_accept += log_like(model, data)
         
         # p(X ∪ C_new)
-        log_p_accept = (
+        log_p_accept += (
             logpdf(ℙ_K, K_total+1) 
-            + logpdf(ℙ_A, C_new.sampled_amplitude)
-            - log(volume(model))
+            + logpdf(ℙ_A, C_new.sampled_amplitude)  # Amplitude
+            - log(volume(model))  # Position
         )
 
         # 1 / p(X)
@@ -209,34 +280,19 @@ function birth_death!(
         # q_birth draws cluster marks ϕ uniformly from the prior
         # So since p_new(ϕ | ...) = q_birth(ϕ | ...), these terms cancel
         # Only the amplitude and position terms need to be removed
-        log_q_birth = logpdf(posterior(0, ℙ_A), C_new.sampled_amplitude)
-        
-        if proposal == :uniform
-            log_q_birth += -log(volume(model))
-        elseif proposal == :datapoint
-            position_logp = -Inf
-            for x in data
-                position_logp = logaddexp(
-                    position_logp, 
-                    -log(length(data)) + logpdf(ℙ_x, C_new.sampled_position - x.position)
-                )
-            end
-            log_q_birth += position_logp
-        else
-            error("Invalid birth proposal.")
-        end
+        log_q_birth = logpdf(posterior(0, ℙ_A), C_new.sampled_amplitude)        
+        log_q_birth += -log(volume(model))
+
         log_p_accept -= log_q_birth
 
         # (1 - birth_prob) / (birth_prob)
         log_p_accept += log(1 - birth_prob) - log(birth_prob)
 
-        #@show "Birth", log_p_accept
-
         # Accept or reject
         # If rejected, remove the cluster
         if log(rand()) < log_p_accept
             # Accept the cluster!
-            #@show "Birth accepted"
+            # @show "Birth accepted"
             return k_new
         else
             remove_cluster!(clusters(model), k_new)
@@ -244,48 +300,42 @@ function birth_death!(
         end
 
     # Propose a death
-    elseif K_empty > 0
+    elseif K_total > 0
 
         # Make proposal
         k_death = rand(empty_clusters)
-        C_death = clusters(model)[k_death]
+
+        # Save cluster in case proposal is rejected
+        C_death = deepcopy(clusters(model)[k_death])
+
+        # Kill cluster
+        remove_cluster!(clusters(model), k_death)
 
         # Compute acceptance probability
         # p_accept = (p_new / p_old) * (q_birth / q_death) * (1 - birth_prob) / (birth_prob)
-        
         ℙ_K = Poisson(cluster_rate(model.priors))
         ℙ_A = cluster_amplitude(model.priors)
+
+        # p(data | {X \ C_new})
+        log_p_accept += log_like(model, data)
         
         # p(X \ C_new)
-        log_p_accept = logpdf(ℙ_K, K_total - 1)
+        log_p_accept += logpdf(ℙ_K, K_total - 1)
         
         # 1 / p(X)
         log_p_accept -= (
             logpdf(ℙ_K, K_total) 
-            + logpdf(ℙ_A, C_death.sampled_amplitude)
-            - log(volume(model))
+            + logpdf(ℙ_A, C_death.sampled_amplitude)  # Amplitude
+            - log(volume(model))  # Position
         )
 
         # q_birth(C_death ; X)
         # q_birth draws cluster marks ϕ uniformly from the prior
         # So since p_new(ϕ | ...) = q_birth(ϕ | ...), these terms cancel
         # Only the amplitude and position terms needs to be removed
-        log_q_birth = logpdf(posterior(0, ℙ_A), C_death.sampled_amplitude)
-        
-        if proposal == :uniform
-            log_q_birth += -log(volume(model))
-        elseif proposal == :datapoint
-            position_logp = -Inf
-            for x in data
-                position_logp = logaddexp(
-                    position_logp, 
-                    -log(length(data)) + logpdf(ℙ_x, C_death.sampled_position - x.position)
-                )
-            end
-            log_q_birth += position_logp
-        else
-            error("Invalid birth proposal.")
-        end
+        log_q_birth = logpdf(posterior(0, ℙ_A), C_death.sampled_amplitude)        
+        log_q_birth += -log(volume(model))
+
         log_p_accept += log_q_birth
 
         # 1 / q_death(C_new ; X ∪ C_new)  <-- Uniform death proposals
@@ -294,15 +344,16 @@ function birth_death!(
         # (birth_prob) / (1 - birth_prob)
         log_p_accept += log(birth_prob) - log(1 - birth_prob)
 
-        #@show "Death", log_p_accept
-
         # Accept or reject
         # If accepted, remove the cluster
         if log(rand()) < log_p_accept
             #@show "Death accepted."
-            remove_cluster!(clusters(model), k_death)
+            #remove_cluster!(clusters(model), k_death)
             return k_death
         else
+            # Add cluster back
+            k_new = add_cluster!(clusters(model))
+            model.clusters.clusters[k_new] = C_death
             return -1
         end
     end

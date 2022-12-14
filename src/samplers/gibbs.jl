@@ -1,7 +1,7 @@
 Base.@kwdef struct GibbsSampler <: AbstractSampler
     verbose::Bool = true
     save_interval::Int = 1
-    save_keys::Union{Symbol, Tuple{Vararg{Symbol}}} = (:log_p, :assignments, :clusters, :globals, :time)
+    save_keys::Union{Symbol, Tuple{Vararg{Symbol}}} = DEFAULT_KEYS
     num_samples::Int = 100
     num_split_merge::Int = 0
     split_merge_gibbs_moves::Int = 0

@@ -20,9 +20,9 @@ And the following methods
 """
 abstract type AbstractSampler end
 
-valid_save_keys(::AbstractSampler) = (:log_p, :assignments, :clusters, :globals, :time)
+valid_save_keys(::AbstractSampler) = (:log_p, :log_joint, :assignments, :clusters, :globals, :time)
 
-
+DEFAULT_KEYS = (:log_p, :log_joint, :time)
 
 
 # ===
@@ -38,9 +38,6 @@ Initialize sampler results.
 """
 function initialize_results(model, assignments, S::AbstractSampler)
     save_interval, save_keys, num_samples = S.save_interval, S.save_keys, S.num_samples
-
-    @assert (:assignments in save_keys)
-
     n_saved_samples = Int(round(num_samples / save_interval))
 
     results = Dict{Symbol, Any}()
@@ -62,11 +59,16 @@ function update_results!(results, model, assignments, data, S::AbstractSampler)
         push!(results[:log_p], log_like(model, data))
     end
 
+    if :log_joint in save_keys
+        lj = last(results[:log_p]) + log_prior(model) + log_p_latents(model)
+        push!(results[:log_joint], lj)
+    end
+
     if :assignments in save_keys
         push!(results[:assignments], deepcopy(assignments))
     end
 
-    if :latents in save_keys
+    if :clusters in save_keys
         push!(results[:clusters], deepcopy(cluster_list_summary(model)))
     end
 

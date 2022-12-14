@@ -21,15 +21,22 @@ begin
 	using Random: seed!
 end
 
+# ╔═╡ a6dd8484-9e71-453c-809e-e6aef8f011a7
+using PlutoUI; TableOfContents()
+
 # ╔═╡ 9a9d1185-0e58-40e5-a4b0-e5efb1f9d448
 using MCMCDiagnosticTools
+
+# ╔═╡ 2abf91c5-c442-4417-8cb4-c3b2c88e9eb5
+using LaTeXStrings
 
 # ╔═╡ 5de272b0-931a-4851-86ac-4249860a9922
 theme(
 	:default, label=nothing, 
 	tickfont=font(:Times, 8), guidefont=(:Times, 8), titlefont=(:Times, 8), 
 	legendfont=(:Times, 8),
-	ms=4, msw=0.25, colorbar=false
+	ms=4, msw=0.25, colorbar=false,
+	frame=:box, grid=false,
 )
 
 # ╔═╡ be352c60-88b9-421a-8fd7-7d34e19665e6
@@ -41,7 +48,7 @@ end
 
 # ╔═╡ d1d53b74-3e7b-44eb-b0e7-1e4b612edeb2
 md"""
-## Fixed Parameters
+## Parameters
 """
 
 # ╔═╡ b0114a0b-58e4-44d2-82db-3a6131435b32
@@ -60,7 +67,7 @@ end;
 
 # ╔═╡ b9ee61fa-c387-404b-b273-11dcfa8b63a0
 md"""
-## Generate data
+## Data
 """
 
 # ╔═╡ fbe2709e-adaf-40a3-bb40-ed4243ff62cd
@@ -90,7 +97,7 @@ end
 
 # ╔═╡ d98caa8b-0c20-4b41-b3e2-404061a6f575
 md"""
-## Fit NSP and Gibbs and RJMC
+## Run Chains
 """
 
 # ╔═╡ 990a0e9f-2bb5-4cac-8de9-7fd68500a53e
@@ -158,10 +165,10 @@ base_config = Dict(
 	# Required
 	:data_seed => 1,
 	:cov_scale => 1e-3,
-	:model_seed => [1, 2, 3],
-	:base_sampler_type => ["rj", "gibbs"],
+	:model_seed => 1, #[1, 2, 3],
+	:base_sampler_type => "rj", #["rj", "gibbs"],
 	:max_num_samples => 10_000_000,
-	:max_time => 10 * 60.0,
+	:max_time => 20.0, #10 * 60.0,
 	:num_jump_move => 5,
 
 	# Optional
@@ -221,11 +228,11 @@ begin
 end
 
 # ╔═╡ a0db0704-8e60-4ff5-b300-1eae870b433c
-dict_list(base_config)
+length(dict_list(base_config))
 
 # ╔═╡ 939cb916-9067-4ba7-86dd-c734a933c6e0
 md"""
-### NOTE: MAKE SURE FORCE IS FALSE
+#### NOTE: MAKE SURE FORCE IS FALSE
 """
 
 # ╔═╡ 6ee153f0-b83f-4f1f-8b09-8cf4ef023ba9
@@ -269,7 +276,7 @@ model_gibbs = [models[("gibbs", 10, 1, c)] for c in 1:3]
 
 # ╔═╡ 5af966fc-cf8e-4a54-9eb3-c84c445ad6f0
 md"""
-## Plot results
+## Plots
 """
 
 # ╔═╡ 058b8bb9-976a-4085-844c-1fa3fb5cb3a4
@@ -277,17 +284,6 @@ true_num_clusters = length(unique(assignments[assignments .!= -1]))
 
 # ╔═╡ 6234628c-0274-4b23-9255-69e5f6878549
 num_clusters(r::NamedTuple) = [length(unique(r.assignments[k][r.assignments[k] .!= -1])) for k in 1:length(r.assignments)]
-
-# ╔═╡ 54bff75b-6133-4481-9b8b-bddb3818675a
-let
-	r = first(results)[2]
-	
-	# x = get_runtime(r)
-	plot(num_clusters(r), lw=2)
-	hline!([true_num_clusters], lw=2, alpha=0.5)
-	
-	plot!(size=(600, 250), ylim=(0, 3*true_num_clusters))
-end
 
 # ╔═╡ db0fa5a1-11f8-44fa-a17a-814c9ffcfcf8
 bkgd_rate(r::NamedTuple) = [r.globals[k].bkgd_rate for k in 1:length(r.globals)]
@@ -304,61 +300,97 @@ end
 # ╔═╡ f20d5e13-172c-4955-82d5-0248ab48cad4
 get_num_clusters(r) = num_clusters(r)
 
-# ╔═╡ 8b5b0efa-8be5-4b29-8531-1f52abb8ebf7
-plt_cgbd_ll = let
-	plot(size=(250, 200), dpi=200)
+# ╔═╡ e504a165-31a1-4f63-86b4-04bca7464f5b
+md"""
+### Log Likelihood
+"""
+
+# ╔═╡ a8ae78c3-f62a-4ada-8858-e9be794f3788
+generative_log_like = let
+	# Actually add clusters to generative model
+	m = deepcopy(gen_model)
+	for c in clusters
+		# Add a fresh cluster
+		k = NeymanScottProcesses.add_cluster!(m.clusters)
+
+		# Instantiate with true cluster
+		m.clusters.clusters[k] = c
+	end
+
+	ll = NeymanScottProcesses.log_like(m, data)
+	lj = ll + NeymanScottProcesses.log_prior(m)
+	lj += NeymanScottProcesses.log_p_latents(m)
 	
-	plot!(
-		[append!([0.0], r.log_p) for r in r_gibbs] / length(data), 
-		lw=2, 
-		c=1, 
-		label=["CG" nothing nothing], 
-		alpha=0.7
-	)
-	plot!(
-		[append!([0.0], r.log_p) for r in r_rj] / length(data), 
-		lw=2, 
-		c=2, 
-		label=["RJMCMC" nothing nothing], 
-		alpha=0.7
-	)
-	
-	plot!(
-		ylim=(1000/length(data), Inf), 
-		legend=:bottomright, 
-		ylabel="Mean Log Likelihood", 
-		xlabel="Sample",
-		xlim=(-100, 3000),
-		xticks=(0:1000:15_000),
-		grid=false
-	)
+	ll / length(data)
 end
 
+# ╔═╡ e006626e-2a25-4ed2-97bc-e1eca7e91d8c
+let
+	r = first(results)[2]
+	@show length(r.log_p)
+	plot(r.log_p / length(data))
+	hline!([generative_log_like])
+end
+
+# ╔═╡ 8b5b0efa-8be5-4b29-8531-1f52abb8ebf7
+plt_loglike = let
+	plt = plot(size=(350, 150))
+
+	for (i, r) in enumerate(r_gibbs)
+		label = (i == 1) ? "CG" : nothing
+		plot!([0.0; get_runtime(r)], [0.0; r.log_p] / length(data), 
+			c=1, alpha=0.5, lw=3, label=label)
+	end
+	for (i, r) in enumerate(r_rj)
+		label = (i == 1) ? "RJ" : nothing
+		plot!([0.0; get_runtime(r)], [0.0; r.log_p] / length(data), 
+			c=2, alpha=0.5, lw=3, label=label)
+	end
+
+	hline!([generative_log_like], lw=3, c=:black, ls=:dash, label="True", alpha=0.5)
+	
+	plot!(
+		title="Mean Log Likelihood", 
+		xlabel="Time (seconds)",
+		xlim=(-3, 60.0),
+		ylim=(4, 8),
+		grid=false,
+		legend=:bottomright
+	)
+	plt	
+end
+
+# ╔═╡ 5606ca15-f300-430c-b3f7-3cfb598c2374
+md"""
+### Number of Clusters
+"""
+
 # ╔═╡ 6044fecb-479f-49d2-ab76-f30cdbae0691
-plt_cgbd_nc = let
-	plot(size=(250, 200), dpi=200)
-	# plot!(
-	# 	[get_runtime(r) for r in r_gibbs_sm0],
-	# 	[get_num_clusters(r) for r in r_gibbs_sm0], 
-	# 	lw=2, c=1, label=["CG SM-Random" nothing nothing]
-	# )
+plt_num_cluster = let
+	plt = plot(size=(600, 200))
+	
 	plot!(
 		[get_runtime(r) for r in r_gibbs],
 		[get_num_clusters(r) for r in r_gibbs], 
-		lw=2, c=2, label=["CG" nothing nothing]
+		lw=3, c=1, alpha=0.5,
 	)
 	plot!(
 		[get_runtime(r) for r in r_rj],
 		[get_num_clusters(r) for r in r_rj], 
-		lw=2, c=3, label=["RJ" nothing nothing], alpha=0.5
+		lw=3, c=2, alpha=0.5
 	)
-	hline!([true_num_clusters], c=:Black, lw=2, label="True")
-	
+
+	hline!([true_num_clusters], c=:Black, lw=3, ls=:dash, label="True", alpha=0.5)
 	
 	plot!(
-		ylabel="Number of Clusters", xlabel="Seconds", legend=:topright,
-		ylim=(0, true_num_clusters*3), grid=false,
+		title="Number of Clusters", 
+		xlabel="Time (seconds)", 
+		legend=:topright,
+		ylim=(0, true_num_clusters*3),
+		xlim=(-3, 60),
+		grid=false,
 	)
+	plt
 end
 
 # ╔═╡ b301bb90-2178-4d49-bca2-e1f7ce59975f
@@ -389,7 +421,7 @@ end
 
 # ╔═╡ d83f7bf8-552a-4c1f-ab09-6c394d2deb4e
 md"""
-## MCMC Diagnostics
+### ESS and Rhat
 """
 
 # ╔═╡ ed090860-0352-4a63-9675-80a80e71cbeb
@@ -419,27 +451,86 @@ ess_method(chain) = ess_rhat(chain; method=ESSMethod())
 get_ess(chain, samples) = [ess_method(chain[1:s, :, :])[1][1] for s in samples]
 
 # ╔═╡ 6650bf54-e43a-4916-a0c7-1c0b0f0e2f4e
-get_psr(chain, samples) = [gelmandiag(chain[1:s, :, :])[2][1] for s in samples]
+get_psr(chain, samples) = [ess_method(chain[1:s, :, :])[2][1] for s in samples]
+
+# ╔═╡ 73090aa5-67a2-40a2-b3df-1dbdcad859ea
+t_cg = mean(make_chain(r_gibbs, get_runtime), dims=[2, 3])[:]
+
+# ╔═╡ 458408a6-e9fe-44b0-8885-d188c0b3d91d
+t_rj = mean(make_chain(r_rj, get_runtime), dims=[2, 3])[:]
+
+# ╔═╡ 2f5bef88-1ba5-4abd-82e7-d0955f0e6247
+_x1 = 1:5000
+
+# ╔═╡ b531ffab-7ce1-4c58-be88-f0bec957759c
+_x2 = 1:7000
+
+# ╔═╡ 0430349c-eb37-4fa9-bee9-28bebbe15118
+ess1 = get_ess(chain_num_clusters_cg, _x1)
+
+# ╔═╡ 028e391f-b510-4545-99f1-6a89a9d577e9
+ess2 = get_ess(chain_num_clusters_rj, _x2)
+
+# ╔═╡ 9addbd92-4060-4f43-906d-3e039143d549
+psr1 = get_psr(chain_num_clusters_cg, _x1)
+
+# ╔═╡ c7315c64-c39e-4736-91ad-df7773dbda2f
+psr2 = get_psr(chain_num_clusters_rj, _x2)
+
+# ╔═╡ 1cd48ec6-470c-4872-a1d6-33adec7e3002
+plt_ess = let
+	plt1 = plot(title="ESS", xlabel="Time (seconds)")
+	plot!(legend=false)
+	plot!(t_cg[_x1], ess1, lw=3, label="CG")
+	plot!(t_rj[_x2], ess2, lw=3, label="RJ")
+
+	plot!(size=(200, 200))
+end;
+
+# ╔═╡ 94bd4254-d2e2-4251-ae83-c156d63cc033
+plt_psr = let
+	plt2 = plot(title="PSR", xlabel="Time (seconds)")
+	plot!(legend=:topright)
+	plot!(t_cg[_x1], psr1, lw=3, c=1)
+	plot!(t_rj[_x2], psr2, lw=3, c=2)
+	hline!([1], color=:black, lw=3, ls=:dash, alpha=0.5, label="Convergence")
+	plot!(ylim=(0.9, 2.0), size=(200, 200))
+end;
+
+# ╔═╡ 2dd7706c-7445-46b9-a395-d872b1ceceee
+plot(plt_psr, plt_ess, layout=(1, 2), size=(600, 200), xlim=(-5, 120))
+
+# ╔═╡ 996ce4ab-143d-4ed3-a54e-b75fac4126b0
+md"""
+## Final Plot
+"""
 
 # ╔═╡ 1f0061bf-2699-4e6d-bcbe-2c5fb4287d7a
 let
-	_x1 = 50:10:size(chain_num_clusters_cg, 1)
-	_x2 = 50:10:size(chain_num_clusters_rj, 1)
+	p1 = deepcopy(plt_loglike)
+	p2 = deepcopy(plt_num_cluster)
+	p3 = deepcopy(plt_psr)
+	p4 = deepcopy(plt_ess)
 
-	t_cg = mean(make_chain(r_gibbs, get_runtime), dims=[2, 3])[:]
-	t_rj = mean(make_chain(r_rj, get_runtime), dims=[2, 3])[:]
+	#plot!(p1, title="", ylabel="Mean Log Likelihood")
+	#plot!(p2, title="", ylabel="Number of Clusters")
+	#plot!(p3, xlabel="", title="", ylabel="PSR")
+	#plot!(p4, xlabel="", title="", ylabel="ESS")
+
+	# Switch legends
+	plot!(p1, legend=:bottomright)
+	plot!(p2, legend=false)
+	plot!(p3, legend=false)
 	
-	plt1 = plot(title="Effective Sample Size", legend=:topleft)
-
-	plot!(t_cg[_x1], get_ess(chain_num_clusters_cg, _x1), lw=3, label="CG + 10 split merge")
-	plot!(t_rj[_x2], get_ess(chain_num_clusters_rj, _x2), lw=3, label="RJ (no split merge)")
-
-	plt2 = plot(title="Potential Scale Reduction", ylim=(0.9, 1.1))
-	hline!([1], color=:black, lw=2)
-	plot!(t_cg[_x1], get_psr(chain_num_clusters_cg, _x1), lw=3, c=1)
-	plot!(t_rj[_x2], get_psr(chain_num_clusters_rj, _x2), lw=3, c=2)
-
-	plot(plt1, plt2, layout=(2, 1), xlim=(0, 100))
+	plot(
+		p1, p2, p3, p4,
+		layout=(1, 4), 
+		xlim=(-2, 120),
+		xticks=0:40:120,
+		size=(650, 150),
+		bottom_margin=4Plots.mm,
+		dpi=200,
+	)
 	
 end
 
@@ -449,6 +540,7 @@ end
 # ╠═acc93e48-e012-11eb-048e-35c010d6acee
 # ╠═5de272b0-931a-4851-86ac-4249860a9922
 # ╟─be352c60-88b9-421a-8fd7-7d34e19665e6
+# ╠═a6dd8484-9e71-453c-809e-e6aef8f011a7
 # ╟─d1d53b74-3e7b-44eb-b0e7-1e4b612edeb2
 # ╠═b0114a0b-58e4-44d2-82db-3a6131435b32
 # ╟─b9ee61fa-c387-404b-b273-11dcfa8b63a0
@@ -460,13 +552,13 @@ end
 # ╠═b100f88d-5158-4099-a7d9-6e9d433c2f14
 # ╠═10924047-b95e-41db-86ef-6f5c2cbea1a5
 # ╟─31444176-7908-4eef-865d-4096aed328cd
-# ╟─d98caa8b-0c20-4b41-b3e2-404061a6f575
-# ╟─990a0e9f-2bb5-4cac-8de9-7fd68500a53e
+# ╠═d98caa8b-0c20-4b41-b3e2-404061a6f575
+# ╠═990a0e9f-2bb5-4cac-8de9-7fd68500a53e
 # ╠═d05b5436-7713-48a3-b3f7-c23ecf1d3c8b
 # ╠═a0db0704-8e60-4ff5-b300-1eae870b433c
+# ╠═e006626e-2a25-4ed2-97bc-e1eca7e91d8c
 # ╟─939cb916-9067-4ba7-86dd-c734a933c6e0
 # ╠═6ee153f0-b83f-4f1f-8b09-8cf4ef023ba9
-# ╠═54bff75b-6133-4481-9b8b-bddb3818675a
 # ╠═26f8ab35-6939-4017-9292-2d9fc8a558dd
 # ╠═f9048b2e-e744-4d49-905b-47ada5a84e54
 # ╠═098e22dc-223d-48d4-a865-bc6dfbedc39d
@@ -477,12 +569,16 @@ end
 # ╠═db0fa5a1-11f8-44fa-a17a-814c9ffcfcf8
 # ╠═270448bf-3eea-4ce6-87f5-f986d2e05057
 # ╠═f20d5e13-172c-4955-82d5-0248ab48cad4
-# ╟─8b5b0efa-8be5-4b29-8531-1f52abb8ebf7
-# ╟─6044fecb-479f-49d2-ab76-f30cdbae0691
-# ╠═b301bb90-2178-4d49-bca2-e1f7ce59975f
+# ╟─e504a165-31a1-4f63-86b4-04bca7464f5b
+# ╠═a8ae78c3-f62a-4ada-8858-e9be794f3788
+# ╠═8b5b0efa-8be5-4b29-8531-1f52abb8ebf7
+# ╟─5606ca15-f300-430c-b3f7-3cfb598c2374
+# ╠═6044fecb-479f-49d2-ab76-f30cdbae0691
+# ╟─b301bb90-2178-4d49-bca2-e1f7ce59975f
 # ╟─27a3553e-9211-45b8-b963-55c4511e6917
 # ╟─d83f7bf8-552a-4c1f-ab09-6c394d2deb4e
 # ╠═9a9d1185-0e58-40e5-a4b0-e5efb1f9d448
+# ╠═2abf91c5-c442-4417-8cb4-c3b2c88e9eb5
 # ╠═ed090860-0352-4a63-9675-80a80e71cbeb
 # ╠═b48c741d-b522-4314-8a95-ca5ff2089797
 # ╠═db3947df-abe6-4349-ba56-3d89b72d5a1a
@@ -490,4 +586,16 @@ end
 # ╠═d94cd58d-38a5-4b9e-be60-d252491af4ea
 # ╠═84d56a3d-f364-4089-8808-289dd064e2f0
 # ╠═6650bf54-e43a-4916-a0c7-1c0b0f0e2f4e
+# ╠═73090aa5-67a2-40a2-b3df-1dbdcad859ea
+# ╠═458408a6-e9fe-44b0-8885-d188c0b3d91d
+# ╠═2f5bef88-1ba5-4abd-82e7-d0955f0e6247
+# ╠═b531ffab-7ce1-4c58-be88-f0bec957759c
+# ╠═0430349c-eb37-4fa9-bee9-28bebbe15118
+# ╠═028e391f-b510-4545-99f1-6a89a9d577e9
+# ╠═9addbd92-4060-4f43-906d-3e039143d549
+# ╠═c7315c64-c39e-4736-91ad-df7773dbda2f
+# ╠═1cd48ec6-470c-4872-a1d6-33adec7e3002
+# ╠═94bd4254-d2e2-4251-ae83-c156d63cc033
+# ╠═2dd7706c-7445-46b9-a395-d872b1ceceee
+# ╟─996ce4ab-143d-4ed3-a54e-b75fac4126b0
 # ╠═1f0061bf-2699-4e6d-bcbe-2c5fb4287d7a

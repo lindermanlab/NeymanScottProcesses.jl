@@ -334,7 +334,7 @@ function log_p_latents(model::GaussianNeymanScottModel)
 
         # Log prior on covariance
         lp += logpdf(
-            InverseWishart(globals.covariance_df, globals.covariance_scale),
+            InverseWishart(priors.covariance_df, priors.covariance_scale),
             cluster.sampled_covariance
         )
     end
