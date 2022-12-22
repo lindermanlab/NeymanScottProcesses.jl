@@ -175,8 +175,9 @@ function birth_move!(model, data, old_ll, birth_prob, K_total)
     
     # [1] Make proposal
     k_new = add_cluster!(clusters(model))
+    clusters(model).clusters[k_new] = sample_cluster(model.globals, model)
     C_new = clusters(model)[k_new]
-    gibbs_sample_cluster_params!(C_new, model)
+    # gibbs_sample_cluster_params!(C_new, model)
     
     # [2] Compute acceptance probability
     # log_p_accept = (log_like_new - log_like_old) 
@@ -187,7 +188,7 @@ function birth_move!(model, data, old_ll, birth_prob, K_total)
     # [2A] Log likelihood ratio
     new_ll = log_like(model, data)  # p(data | {X ∪ C_new})
 
-    # log_p_accept += new_ll - old_ll
+    log_p_accept += new_ll - old_ll
 
     # [2B] Log prior ratio
     # Note: q_birth draws cluster marks ϕ uniformly from the prior
@@ -208,13 +209,20 @@ function birth_move!(model, data, old_ll, birth_prob, K_total)
 
     log_p_accept += q_rev - q_fwd
 
+    @show log_p_accept
+    @show new_ll - old_ll
+    @show C_new.sampled_amplitude
+
     # [3] Accept or reject
     if log(rand()) < log_p_accept
-        # @show "Birth accepted"
+        @show "Birth accepted"
+        println()
         return k_new
     
     # If rejected, undo adding the cluster
     else
+        @show "Birth rejected"
+        println()
         remove_cluster!(clusters(model), k_new)
         return -1
     end

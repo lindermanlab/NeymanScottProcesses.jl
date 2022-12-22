@@ -60,10 +60,13 @@ begin
 	max_cluster_radius = 0.25
 	
 	η = 10.0  # Cluster rate
-	Ak = specify_gamma(30.0, 10.0^2)  # Cluster amplitude
+	Ak = specify_gamma(10.0, 3.0^2)  # Cluster amplitude
 	A0 = specify_gamma(0.1, 1.0^2)  # Background amplitude
 	ν = 5.0  # Covariance degrees of freedom
 end;
+
+# ╔═╡ f64682d0-deb9-45a0-b9c8-a696ab9e46b8
+Ak
 
 # ╔═╡ b9ee61fa-c387-404b-b273-11dcfa8b63a0
 md"""
@@ -114,7 +117,9 @@ function fit_data(config)
 	obs, _ = produce_or_load(
 		datadir("observations"), 
 		@dict(data_seed, cov_scale),
-		generate_data)
+		generate_data,
+		force=true
+	)
 	@unpack priors, gen_model, data, clusters, assignments = obs
 
 	# Set model / chain seed
@@ -143,8 +148,10 @@ function fit_data(config)
 
 	# Initialize model
  	model = GaussianNeymanScottModel(bounds, priors)
-	z0 = rand(1:length(data), length(data))
-	z0 = assignments  # Check that sampler is unbiased
+	z0 = Int.(rand(1:length(data), length(data)))  # length(data), length(data))
+
+	# model.globals = deepcopy(gen_model.globals)
+	# z0 = assignments  # Check that sampler is unbiased
 
 	# Fit model
 	t = @elapsed results = sampler(
@@ -165,15 +172,15 @@ base_config = Dict(
 	# Required
 	:data_seed => 1,
 	:cov_scale => 1e-3,
-	:model_seed => 1,  # [1, 2, 3],
-	:base_sampler_type => "rj",  # ["rj", "gibbs"],
+	:model_seed => [1, 2, 3],
+	:base_sampler_type => ["rj", "gibbs"],
 	:max_num_samples => 10_000_000,
-	:max_time => 20.0,  # 10 * 60.0,
+	:max_time => 1 * 60.0,
 	:num_jump_move => 10,
 
 	# Optional
-	:num_split_merge => 0,  #[0, @onlyif(:base_sampler_type == "gibbs", 10)],
-	:split_merge_gibbs_moves => 0,  #[0, @onlyif(:num_split_merge > 0, 1)],
+	:num_split_merge => @onlyif(:base_sampler_type == "gibbs", 10),
+	:split_merge_gibbs_moves => @onlyif(:num_split_merge > 0, 1),
 )
 
 # ╔═╡ 8a9d96cb-3baf-433c-a8d4-4d8b83a753fd
@@ -186,7 +193,8 @@ cov_scale = base_config[:cov_scale]
 observation_data, _ = produce_or_load(
 	datadir("observations"),
 	@dict(data_seed, cov_scale),
-	generate_data
+	generate_data;
+	force=true
 );
 
 # ╔═╡ b100f88d-5158-4099-a7d9-6e9d433c2f14
@@ -200,38 +208,6 @@ length(unique(assignments[assignments .!= -1]))
 
 # ╔═╡ 10924047-b95e-41db-86ef-6f5c2cbea1a5
 length(data)
-
-# ╔═╡ 31444176-7908-4eef-865d-4096aed328cd
-begin
-	# Make points easy to plot
-	data_x = [x.position[1] for x in data]
-	data_y = [x.position[2] for x in data]
-	
-	# Format plot for data
-	function make_data_plot()
-		plt = plot(xticks=nothing, yticks=nothing, xlim=(0, 1), ylim=(0, 1),
-		frame=:box)
-		scatter!(data_x, data_y, c=:black, ms=1.5, alpha=0.5)
-		return plt
-	end
-	
-	plt_true_data = make_data_plot()
-	
-	function plot_clusters!(plt, clusters)
-		for C in clusters
-			covellipse!(
-				plt, C.sampled_position, C.sampled_covariance, 
-				n_std=3, aspect_ratio=1, 
-				alpha=0.3, c=1
-			)
-		end
-	end
-
-	plot_clusters!(plt_true_data, clusters)
-	
-	plot!(title="True (NSP)", size=(200, 200))
-
-end
 
 # ╔═╡ a0db0704-8e60-4ff5-b300-1eae870b433c
 length(dict_list(base_config))
@@ -254,8 +230,7 @@ begin
 	for c in dict_list(base_config)
 		# Load key parameters for naming
 		@unpack model_seed, base_sampler_type = c
-		@unpack num_split_merge, split_merge_gibbs_moves = c
-		@show base_sampler_type, num_split_merge, model_seed, split_merge_gibbs_moves
+		@show base_sampler_type, model_seed
 		
 		# Run simulation		
 		r, _ = produce_or_load(
@@ -266,24 +241,76 @@ begin
 		)
 
 		# Save result
-		t = (base_sampler_type, num_split_merge, split_merge_gibbs_moves, model_seed)
+		t = (base_sampler_type, model_seed)
 		models[t] = r["model"]
 		results[t] = r["results"]
 		@show last(get_runtime(r["results"]))
 	end
 end
 
+# ╔═╡ 42688bb9-167e-4780-9191-4fa52fe2cbf9
+rj_sampled_clusters = let
+	model = first(models)[2]
+
+	#f = c -> (sampec.sampled_amplitude, c.sampled_position)
+	clusters = [model.clusters[i] for i in model.clusters.indices]
+end
+
+# ╔═╡ 31444176-7908-4eef-865d-4096aed328cd
+begin
+	# Make points easy to plot
+	data_x = [x.position[1] for x in data]
+	data_y = [x.position[2] for x in data]
+	
+	# Format plot for data
+	function make_data_plot()
+		plt = plot(xticks=nothing, yticks=nothing, xlim=(0, 1), ylim=(0, 1),
+		frame=:box)
+		scatter!(data_x, data_y, c=:black, ms=1.5, alpha=0.5)
+		return plt
+	end
+	
+	plt_true_data = make_data_plot()
+	
+	function plot_clusters!(plt, clusters; c=1)
+		for C in clusters
+			covellipse!(
+				plt, C.sampled_position, C.sampled_covariance, 
+				n_std=3, aspect_ratio=1, 
+				alpha=0.3, c=c
+			)
+		end
+	end
+
+	plot_clusters!(plt_true_data, clusters)
+
+	#cluster_x = [c[2][1] for c in rj_sampled_clusters]
+	#cluster_y = [c[2][2] for c in rj_sampled_clusters]
+	#scatter!(cluster_x, cluster_y)
+	plot_clusters!(plt_true_data, rj_sampled_clusters, c=2)
+	
+	plot!(title="True (NSP)", size=(200, 200))
+
+end
+
+# ╔═╡ 67700dc4-89e7-49cd-a6d9-f58da1d23256
+let
+	model = first(models)[2]
+
+	model.priors
+end;
+
 # ╔═╡ 26f8ab35-6939-4017-9292-2d9fc8a558dd
-r_gibbs = [results[("gibbs", 10, 1, c)] for c in 1:3]
+r_gibbs = [results[("gibbs", c)] for c in 1:3]
 
 # ╔═╡ f9048b2e-e744-4d49-905b-47ada5a84e54
-r_gibbs_sm0 = [results[("gibbs", 10, 0, c)] for c in 1:3]
+r_gibbs_sm0 = [results[("gibbs", c)] for c in 1:3]
 
 # ╔═╡ 098e22dc-223d-48d4-a865-bc6dfbedc39d
-r_rj = [results[("rj", 0, 0, c)] for c in 1:3]
+r_rj = [results[("rj", c)] for c in 1:3]
 
 # ╔═╡ 73067b2c-df07-415f-9ccc-74c9e70dda64
-model_gibbs = [models[("gibbs", 10, 1, c)] for c in 1:3]
+model_gibbs = [models[("gibbs", c)] for c in 1:3]
 
 # ╔═╡ 5af966fc-cf8e-4a54-9eb3-c84c445ad6f0
 md"""
@@ -292,6 +319,9 @@ md"""
 
 # ╔═╡ 058b8bb9-976a-4085-844c-1fa3fb5cb3a4
 true_num_clusters = length(unique(assignments[assignments .!= -1]))
+
+# ╔═╡ c5d1d485-080f-4cd7-8b72-99d31c4c373e
+sort([count(==(i), assignments) for i in 1:true_num_clusters], rev=true)
 
 # ╔═╡ 6234628c-0274-4b23-9255-69e5f6878549
 num_clusters(r::NamedTuple) = [length(unique(r.assignments[k][r.assignments[k] .!= -1])) for k in 1:length(r.assignments)]
@@ -342,11 +372,17 @@ let
 	plt1 = plot(r.log_p / length(data), title="Log Likelihood")
 	hline!([generative_log_like])
 
-	plt2 = plot(num_clusters(r), title="Number of Clusters", ylim=(0, 3*true_num_clusters))
-	plot!(num_clusters_all(r))
-	hline!([true_num_clusters], c=:black, lw=2, label="true")
-	hline!([10], c=:green, lw=2, label="prior")
+	# Number of clusters
+	plt2 = plot(title="Number of Clusters")
+	hline!([true_num_clusters], c=:black, lw=2, label="true non-empty", ls=:dash)
+	hline!([length(clusters)], c=:red, label="true")
+	hline!([η], c=:green, lw=2, label="prior")
+	
+	plot!(num_clusters(r), label="non-empty", c=1)
+	#plot!(num_clusters_all(r), label="all", c=2)
+	
 	plot!(legend=:outertopright)
+	plot!(ylim=(0, 2*true_num_clusters))
 
 	plot(plt1, plt2, layout=(1, 2), size=(600, 200))
 end
@@ -479,10 +515,10 @@ t_cg = mean(make_chain(r_gibbs, get_runtime), dims=[2, 3])[:]
 t_rj = mean(make_chain(r_rj, get_runtime), dims=[2, 3])[:]
 
 # ╔═╡ 2f5bef88-1ba5-4abd-82e7-d0955f0e6247
-_x1 = 1:5000
+_x1 = 1:3000
 
 # ╔═╡ b531ffab-7ce1-4c58-be88-f0bec957759c
-_x2 = 1:7000
+_x2 = 1:3000
 
 # ╔═╡ 0430349c-eb37-4fa9-bee9-28bebbe15118
 ess1 = get_ess(chain_num_clusters_cg, _x1)
@@ -572,8 +608,9 @@ save_and_show(final_plt, "cg_vs_rj")
 # ╠═a6dd8484-9e71-453c-809e-e6aef8f011a7
 # ╟─d1d53b74-3e7b-44eb-b0e7-1e4b612edeb2
 # ╠═b0114a0b-58e4-44d2-82db-3a6131435b32
+# ╠═f64682d0-deb9-45a0-b9c8-a696ab9e46b8
 # ╟─b9ee61fa-c387-404b-b273-11dcfa8b63a0
-# ╟─fbe2709e-adaf-40a3-bb40-ed4243ff62cd
+# ╠═fbe2709e-adaf-40a3-bb40-ed4243ff62cd
 # ╠═ccc338f5-baae-4009-ac9b-413b8b4aafbb
 # ╠═8a9d96cb-3baf-433c-a8d4-4d8b83a753fd
 # ╠═ac60e75a-5691-469c-966b-fca70c2ee7fe
@@ -582,13 +619,16 @@ save_and_show(final_plt, "cg_vs_rj")
 # ╠═d109dfb5-de40-4391-a1b2-2f0b05507807
 # ╠═61a667d7-97c4-45a3-ab6e-200b04a1d1ac
 # ╠═10924047-b95e-41db-86ef-6f5c2cbea1a5
-# ╟─31444176-7908-4eef-865d-4096aed328cd
+# ╠═c5d1d485-080f-4cd7-8b72-99d31c4c373e
+# ╠═31444176-7908-4eef-865d-4096aed328cd
 # ╟─d98caa8b-0c20-4b41-b3e2-404061a6f575
 # ╟─990a0e9f-2bb5-4cac-8de9-7fd68500a53e
 # ╠═d05b5436-7713-48a3-b3f7-c23ecf1d3c8b
 # ╠═a0db0704-8e60-4ff5-b300-1eae870b433c
 # ╠═9f2028b3-7959-4e23-9e5a-b34066fe1885
 # ╠═c5f56d55-1200-498f-a4ec-fe91da66ad06
+# ╠═42688bb9-167e-4780-9191-4fa52fe2cbf9
+# ╠═67700dc4-89e7-49cd-a6d9-f58da1d23256
 # ╟─939cb916-9067-4ba7-86dd-c734a933c6e0
 # ╠═6ee153f0-b83f-4f1f-8b09-8cf4ef023ba9
 # ╠═26f8ab35-6939-4017-9292-2d9fc8a558dd
