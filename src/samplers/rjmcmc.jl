@@ -209,19 +209,19 @@ function birth_move!(model, data, old_ll, birth_prob, K_total)
 
     log_p_accept += q_rev - q_fwd
 
-    @show log_p_accept
-    @show new_ll - old_ll
-    @show C_new.sampled_amplitude
+    #@show log_p_accept
+    #@show new_ll - old_ll
+    #@show C_new.sampled_amplitude
 
     # [3] Accept or reject
     if log(rand()) < log_p_accept
-        @show "Birth accepted"
+        #@show "Birth accepted"
         println()
         return k_new
     
     # If rejected, undo adding the cluster
     else
-        @show "Birth rejected"
+        #@show "Birth rejected"
         println()
         remove_cluster!(clusters(model), k_new)
         return -1
