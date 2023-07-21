@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.19.14
+# v0.19.22
 
 using Markdown
 using InteractiveUtils
@@ -50,7 +50,7 @@ md"""
 
 # ╔═╡ b0114a0b-58e4-44d2-82db-3a6131435b32
 begin
-    num_chains = 1
+    num_chains = 3
 
 	data_seed = 1
     dim = 2  # Dimension of the data
@@ -58,7 +58,7 @@ begin
     max_cluster_radius = 0.25
     
     η = 10.0  # Cluster rate
-    Ak = specify_gamma(30.0, 10.0^2)  # Cluster amplitude
+    Ak = specify_gamma(10.0, 3.0^2)  # Cluster amplitude
     A0 = specify_gamma(0.1, 1.0^2)  # Background amplitude
     
     Ψ = 1e-3 * I(dim)  # Covariance scale
@@ -93,6 +93,9 @@ observation_data = generate_data();
 
 # ╔═╡ 55f5511f-b199-4deb-b82e-2a6091c8b06e
 @unpack priors, gen_model, data, clusters, assignments = observation_data
+
+# ╔═╡ 51e540d5-ac54-48f8-826f-93c0d2251403
+data
 
 # ╔═╡ 10924047-b95e-41db-86ef-6f5c2cbea1a5
 length(data)
@@ -143,7 +146,7 @@ md"""
 # ╔═╡ 60cf6826-5b63-4d0d-8ee9-1c78b6e5b5dc
 # Construct samplers
 begin
-    sampler = GibbsSampler(num_samples=1000, save_interval=1, num_split_merge=10, verbose=false, split_merge_gibbs_moves=1)
+    sampler = GibbsSampler(num_samples=5000, save_interval=1, num_split_merge=10, verbose=false, split_merge_gibbs_moves=1)
 end;
 
 # ╔═╡ 5af966fc-cf8e-4a54-9eb3-c84c445ad6f0
@@ -191,7 +194,7 @@ end
 begin
     plt_fit_data_nsp = make_data_plot(data_x, data_y)
 	plot_clusters!(plt_fit_data_nsp, nsp_model[1].clusters)
-	plot!(title="Learned (NSP)")
+	plot!(title="Sample (NSP)")
     
 	#nsp_ω = make_consistent(r_nsp[2].assignments[end], data_x)
     #scatter!(data_x, data_y, c=nsp_ω, title="fit with nsp")
@@ -240,11 +243,19 @@ begin
     save_and_show(plt_ll, "log_prob")
 end
 
+# ╔═╡ 5b408068-e63f-4396-8e13-7fb88fe776b8
+plot(
+	[length(unique(w)) for w in r_nsp[3].assignments][1:1000],
+	lw=2,
+	size=(600, 200),
+	ylims=(0, 50),
+)
+
 # ╔═╡ 17406fcc-ff2e-4fef-a552-06063ec70872
 begin
     plt_fit_data_dpm = make_data_plot(data_x, data_y)
 	plot_clusters!(plt_fit_data_dpm, dpm_model[1].clusters)
-	plot!(title="Learned (DPM)")
+	plot!(title="Sample (DPM)")
 	
     # Plot data and fits together
     plt_data = plot(plt_true_data, plt_fit_data_nsp, plt_fit_data_dpm, layout=(1, 3))
@@ -262,7 +273,8 @@ Plot the accuracy and the number of clusters.
 
 # ╔═╡ e6901d7d-6f3f-493e-9d00-7524475c5ccb
 begin
-    num_samples = 50
+    num_samples = 500
+	num_dots = 200
 end;
 
 # ╔═╡ 84170512-8fd9-430f-9124-f53bbe2a0e8e
@@ -290,14 +302,15 @@ begin
     # Plot violin plots for NSP and DPM
     for (ind, r) in enumerate([r_nsp, r_dpm])
         num_cluster = append!([[
-            length(unique(ω)) - 1 for ω in r[chain].assignments[end-num_samples+1:end]
+            length(unique(ω)) for ω in r[chain].assignments[end-num_samples+1:end]
         ] for chain in 1:num_chains]...)
 
-        num_clus_x = fill(ind, num_chains*num_samples)
+		num_cluster = rand(num_cluster, num_dots)
+        num_clus_x = fill(ind, num_dots)
         
-        if ind == 2
+        if ind in [1, 2]
             violin!(num_clus_x, num_cluster, color=1)
-            boxplot!(num_clus_x, num_cluster, fillalpha=0.5, color=2)
+        	# boxplot!(num_clus_x, num_cluster, fillalpha=0.5, color=2)
         end
         
         dotplot!(num_clus_x, num_cluster, marker=(:Black, 1), alpha=0.5)
@@ -316,7 +329,7 @@ md"""
 begin
     cm_true = cooccupancy_matrix(assignments)
     cm_nsp = cooccupancy_matrix(r_nsp[1].assignments[end-num_samples+1:end])
-    cm_dpm = cooccupancy_matrix(r_dpm[1].assignments[end-num_samples+1:end])
+    cm_dpm = cooccupancy_matrix(r_dpm[3].assignments[end-num_samples+1:end])
 
     plot(
         heatmap(cm_true, title="true", ticks=nothing), 
@@ -326,6 +339,15 @@ begin
         size=(650, 200)
     )
 end
+
+# ╔═╡ 105c2519-b586-47f9-be57-f25f00609646
+1 - sum(abs, cm_true - cm_true) / length(cm_true)
+
+# ╔═╡ 139ae8d3-571b-4353-a250-dff9ab44d2e0
+1 - sum(abs, cm_true - cm_nsp) / length(cm_true)
+
+# ╔═╡ 2f0342f2-d2de-47d0-af8d-4e833abc9694
+1 - sum(abs, cm_true - cm_dpm) / length(cm_true)
 
 # ╔═╡ c8a901f5-84b7-4eae-9f4c-4d5e74e9c02b
 md"""
@@ -340,12 +362,15 @@ begin
         1 - sum(abs, cm_true - cooccupancy_matrix(ω)) / length(cm_true)
         for ω in r_nsp[chain].assignments[end-num_samples+1:end]
     ] for chain in 1:num_chains]...)
+	acc_nsp = rand(acc_nsp, num_dots)
+	
     acc_dpm = append!([[
         1 - sum(abs, cm_true - cooccupancy_matrix(ω)) / length(cm_true)
         for ω in r_dpm[chain].assignments[end-num_samples+1:end]
     ] for chain in 1:num_chains]...)
+	acc_dpm = rand(acc_dpm, num_dots)
     
-    acc_x = repeat([1,2], inner=num_chains*50)
+    acc_x = repeat([1,2], inner=num_dots)
     acc_y = [acc_nsp; acc_dpm]
     
     # Set up plot
@@ -358,10 +383,10 @@ begin
     
     # Plot data
     violin!(acc_x, acc_y)
-    boxplot!(acc_x, acc_y, fillalpha=0.5, outliers=false)
+    # boxplot!(acc_x, acc_y, fillalpha=0.5, outliers=false)
     dotplot!(acc_x, acc_y, marker=(:Black, 1), alpha=0.5)
 
-	plot!(yticks=0.95:0.01:1.0, ylim=(0.96, 1.0))
+	plot!(yticks=0.95:0.01:1.0, ylim=(0.95, 1.0))
     
     save_and_show(plt_acc, "accuracy")
 end
@@ -412,11 +437,12 @@ end
 # ╟─fd006bd8-1110-43a0-a4b2-d23eb529eb37
 # ╠═751f3312-f20c-45e4-abfe-e4ccf5d238a4
 # ╠═55f5511f-b199-4deb-b82e-2a6091c8b06e
+# ╠═51e540d5-ac54-48f8-826f-93c0d2251403
 # ╠═10924047-b95e-41db-86ef-6f5c2cbea1a5
 # ╠═5d42306d-55d3-418f-9603-a217730bf653
 # ╟─3e7a2f7e-7068-47b5-a855-f5a77e83cc19
 # ╟─91ce2bdc-3095-44a8-a7e0-3a2d5e0625a8
-# ╠═28075f70-b967-4fa6-95a1-cddb20782076
+# ╟─28075f70-b967-4fa6-95a1-cddb20782076
 # ╠═31444176-7908-4eef-865d-4096aed328cd
 # ╟─d98caa8b-0c20-4b41-b3e2-404061a6f575
 # ╠═60cf6826-5b63-4d0d-8ee9-1c78b6e5b5dc
@@ -426,16 +452,20 @@ end
 # ╠═b301bb90-2178-4d49-bca2-e1f7ce59975f
 # ╟─27a3553e-9211-45b8-b963-55c4511e6917
 # ╟─65fbe8af-0c79-4710-a7a2-9b5b1b456a42
-# ╠═52a0caa9-ca84-401b-bddf-c3398ffa9bf4
+# ╟─52a0caa9-ca84-401b-bddf-c3398ffa9bf4
 # ╟─53229684-46ec-49ac-9c03-78bcaa636165
+# ╠═5b408068-e63f-4396-8e13-7fb88fe776b8
 # ╠═17406fcc-ff2e-4fef-a552-06063ec70872
 # ╟─77f2fb41-c0bc-4aac-a98d-0048c7b2a8b0
 # ╠═e6901d7d-6f3f-493e-9d00-7524475c5ccb
 # ╟─84170512-8fd9-430f-9124-f53bbe2a0e8e
 # ╠═e571a594-4a6e-4dd5-8762-f7330b3707ce
 # ╟─21439aeb-b306-4e44-b566-934aa6c3adb5
-# ╟─f3ae22fc-0bb6-4469-ac9d-2bc32252c1a3
+# ╠═f3ae22fc-0bb6-4469-ac9d-2bc32252c1a3
+# ╠═105c2519-b586-47f9-be57-f25f00609646
+# ╠═139ae8d3-571b-4353-a250-dff9ab44d2e0
+# ╠═2f0342f2-d2de-47d0-af8d-4e833abc9694
 # ╟─c8a901f5-84b7-4eae-9f4c-4d5e74e9c02b
 # ╠═cd0c0109-0dee-4da8-b9c0-282ec378bf63
 # ╟─efc4144b-3578-4c91-9575-04a8f98b6816
-# ╠═4fb64ab7-b329-451c-b4ff-9ae80ff6ae59
+# ╟─4fb64ab7-b329-451c-b4ff-9ae80ff6ae59

@@ -7,6 +7,7 @@ nsp.sublime-*
 figures/
 */results/
 gr-temp/
-data/
+*/data/
+data
 
 experiments/embassy/raw

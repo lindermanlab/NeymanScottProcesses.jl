@@ -285,6 +285,8 @@ Or else prepare for a very long run.
 """
 
 # ╔═╡ 6ee153f0-b83f-4f1f-8b09-8cf4ef023ba9
+# ╠═╡ disabled = true
+#=╠═╡
 begin
 	models = Dict()
 	results = Dict()
@@ -309,24 +311,27 @@ begin
 		@show last(get_runtime(r["results"]))
 	end
 end
+  ╠═╡ =#
 
 # ╔═╡ 26f8ab35-6939-4017-9292-2d9fc8a558dd
+#=╠═╡
 r_gibbs = [results[("gibbs", c)] for c in 1:3]
-
-# ╔═╡ 6b8fc595-429f-45fb-92ba-d4a922cfc7f8
-[length(r.assignments) for r in r_gibbs]
+  ╠═╡ =#
 
 # ╔═╡ f9048b2e-e744-4d49-905b-47ada5a84e54
+#=╠═╡
 r_gibbs_sm0 = [results[("gibbs", c)] for c in 1:3]
+  ╠═╡ =#
 
 # ╔═╡ 098e22dc-223d-48d4-a865-bc6dfbedc39d
+#=╠═╡
 r_rj = [results[("rj", c)] for c in 1:3]
-
-# ╔═╡ b3cf23c6-c7a3-4891-bbe8-fd1541c47511
-[length(r.assignments) for r in r_rj]
+  ╠═╡ =#
 
 # ╔═╡ 73067b2c-df07-415f-9ccc-74c9e70dda64
+#=╠═╡
 model_gibbs = [models[("gibbs", c)] for c in 1:3]
+  ╠═╡ =#
 
 # ╔═╡ 5af966fc-cf8e-4a54-9eb3-c84c445ad6f0
 md"""
@@ -346,6 +351,7 @@ num_clusters(r::NamedTuple) = [length(unique(r.assignments[k][r.assignments[k] .
 bkgd_rate(r::NamedTuple) = [r.globals[k].bkgd_rate for k in 1:length(r.globals)]
 
 # ╔═╡ 270448bf-3eea-4ce6-87f5-f986d2e05057
+#=╠═╡
 let
 	plt = plot(size=(400, 200), ylim=(0, 2*true_num_clusters), title="Number of clusters during CG algorithm", xlabel="Sample", xlim=(0, 1000))
 	[plot!(num_clusters(r_gibbs[k]), lw=2) for k in 1:3]
@@ -353,6 +359,7 @@ let
 	hline!([true_num_clusters], c=:Black, lw=2, label="True")
 	plt
 end
+  ╠═╡ =#
 
 # ╔═╡ f20d5e13-172c-4955-82d5-0248ab48cad4
 get_num_clusters(r) = num_clusters(r)
@@ -382,6 +389,7 @@ generative_log_like = let
 end
 
 # ╔═╡ 8b5b0efa-8be5-4b29-8531-1f52abb8ebf7
+#=╠═╡
 plt_loglike = let
 	plt = plot(size=(350, 150))
 
@@ -408,6 +416,7 @@ plt_loglike = let
 	)
 	plt	
 end
+  ╠═╡ =#
 
 # ╔═╡ 5606ca15-f300-430c-b3f7-3cfb598c2374
 md"""
@@ -415,6 +424,7 @@ md"""
 """
 
 # ╔═╡ 6044fecb-479f-49d2-ab76-f30cdbae0691
+#=╠═╡
 plt_num_cluster = let
 	plt = plot(size=(600, 200))
 	
@@ -441,6 +451,7 @@ plt_num_cluster = let
 	)
 	plt
 end
+  ╠═╡ =#
 
 # ╔═╡ b301bb90-2178-4d49-bca2-e1f7ce59975f
 function make_consistent(ω, data)
@@ -487,13 +498,19 @@ function make_chain(rs, f)
 end
 
 # ╔═╡ b48c741d-b522-4314-8a95-ca5ff2089797
+#=╠═╡
 chain_num_clusters_cg = make_chain(r_gibbs, num_clusters);
+  ╠═╡ =#
 
 # ╔═╡ db3947df-abe6-4349-ba56-3d89b72d5a1a
+#=╠═╡
 chain_num_clusters_rj = make_chain(r_rj, num_clusters);
+  ╠═╡ =#
 
 # ╔═╡ 4929b857-51bd-4c2d-9cf8-a0d59820f502
+#=╠═╡
 size(chain_num_clusters_cg)
+  ╠═╡ =#
 
 # ╔═╡ d94cd58d-38a5-4b9e-be60-d252491af4ea
 ess_method(chain) = ess_rhat(chain; method=ESSMethod())
@@ -505,30 +522,43 @@ get_ess(chain, samples) = [ess_method(chain[1:s, :, :])[1][1] for s in samples]
 get_psr(chain, samples) = [ess_method(chain[1:s, :, :])[2][1] for s in samples]
 
 # ╔═╡ 73090aa5-67a2-40a2-b3df-1dbdcad859ea
+#=╠═╡
 t_cg = mean(make_chain(r_gibbs, get_runtime), dims=[2, 3])[:]
+  ╠═╡ =#
 
 # ╔═╡ 458408a6-e9fe-44b0-8885-d188c0b3d91d
+#=╠═╡
 t_rj = mean(make_chain(r_rj, get_runtime), dims=[2, 3])[:]
+  ╠═╡ =#
 
 # ╔═╡ 2f5bef88-1ba5-4abd-82e7-d0955f0e6247
-_x1 = 1:7000
+_x1 = 1:9_000
 
 # ╔═╡ b531ffab-7ce1-4c58-be88-f0bec957759c
-_x2 = 1:6500
+_x2 = 1:8_000
 
 # ╔═╡ 0430349c-eb37-4fa9-bee9-28bebbe15118
+#=╠═╡
 ess1 = get_ess(chain_num_clusters_cg, _x1)
+  ╠═╡ =#
 
 # ╔═╡ 028e391f-b510-4545-99f1-6a89a9d577e9
+#=╠═╡
 ess2 = get_ess(chain_num_clusters_rj, _x2)
+  ╠═╡ =#
 
 # ╔═╡ 9addbd92-4060-4f43-906d-3e039143d549
+#=╠═╡
 psr1 = get_psr(chain_num_clusters_cg, _x1)
+  ╠═╡ =#
 
 # ╔═╡ c7315c64-c39e-4736-91ad-df7773dbda2f
+#=╠═╡
 psr2 = get_psr(chain_num_clusters_rj, _x2)
+  ╠═╡ =#
 
 # ╔═╡ 1cd48ec6-470c-4872-a1d6-33adec7e3002
+#=╠═╡
 plt_ess = let
 	plt1 = plot(title="ESS", xlabel="Time (seconds)")
 	plot!(legend=false)
@@ -537,8 +567,10 @@ plt_ess = let
 
 	plot!(size=(200, 200), xlim=(0, 100), ylim=(-20, 1000))
 end;
+  ╠═╡ =#
 
 # ╔═╡ 94bd4254-d2e2-4251-ae83-c156d63cc033
+#=╠═╡
 plt_psr = let
 	plt2 = plot(title="PSR", xlabel="Time (seconds)")
 	plot!(legend=:topright)
@@ -547,9 +579,12 @@ plt_psr = let
 	hline!([1], color=:black, lw=3, ls=:dash, alpha=0.5, label="Convergence")
 	plot!(ylim=(0.9, 2.0), size=(200, 200), xlim=(0, 15))
 end;
+  ╠═╡ =#
 
 # ╔═╡ 2dd7706c-7445-46b9-a395-d872b1ceceee
+#=╠═╡
 plot(plt_psr, plt_ess, layout=(1, 2), size=(600, 200))
+  ╠═╡ =#
 
 # ╔═╡ 996ce4ab-143d-4ed3-a54e-b75fac4126b0
 md"""
@@ -557,6 +592,7 @@ md"""
 """
 
 # ╔═╡ 1f0061bf-2699-4e6d-bcbe-2c5fb4287d7a
+#=╠═╡
 final_plt = let
 	p1 = deepcopy(plt_loglike)
 	p2 = deepcopy(plt_num_cluster)
@@ -593,11 +629,174 @@ final_plt = let
 
 	plt
 end;
+  ╠═╡ =#
 
 # ╔═╡ ff85f399-3759-4c6e-8f32-66d29fdbed87
 #=╠═╡
 save_and_show(final_plt, "cg_vs_rj")
   ╠═╡ =#
+
+# ╔═╡ 0325ac67-c267-4589-a390-97e6dc80b17b
+dict_list(scaling_config) |> length
+
+# ╔═╡ fe8554c2-fd1c-4c7b-9cad-d10bcb7936fc
+# ╠═╡ disabled = true
+#=╠═╡
+begin
+	scaling_models = Dict()
+	scaling_results = Dict()
+	
+	for c in dict_list(scaling_config)
+		# Load key parameters for naming
+		@unpack cov_scale, model_seed, base_sampler_type = c
+		
+		# Run simulation		
+		r, _ = produce_or_load(
+			datadir("fit"),
+			c,
+			fit_data;
+			force=false,
+		)
+
+		# Save result
+		t = (cov_scale, model_seed, base_sampler_type)
+		scaling_models[t] = r["model"]
+		scaling_results[t] = r["results"]
+		@show last(get_runtime(r["results"]))
+	end
+end
+  ╠═╡ =#
+
+# ╔═╡ 4520e800-e8c4-4aed-9b94-db8bb0f9256a
+algs = ["rj", "gibbs"];
+
+# ╔═╡ eabd14ac-55f1-43fc-a5b8-dfde9f3adf2f
+covs = scaling_config[:cov_scale];
+
+# ╔═╡ f5aa0b56-7482-45e2-9112-b1eaa9566eb7
+seeds = scaling_config[:model_seed];
+
+# ╔═╡ bdfb89b7-05de-4198-9251-4f4bc3f83ae8
+# ╠═╡ disabled = true
+#=╠═╡
+# (1) For each (cov, alg), compute ESS at 100 seconds
+ess = let
+
+	ess_results = Dict()
+	
+	for (a, c) in Iterators.product(algs, covs)
+	
+		@show a, c
+	
+		# Extract results
+		r = [scaling_results[(c, s, a)] for s in seeds]
+	
+		# Compute last sample in 100 seconds
+		t = mean(make_chain(r, get_runtime), dims=[2, 3])[:]
+		final_sample = findfirst(>(60), t)
+		@show final_sample
+	
+		# Compute final effective sample size
+		ess = last(get_ess(make_chain(r, num_clusters), 1:final_sample))
+		
+		@show ess
+
+		ess_results[(a, c)] = ess
+	end
+
+	ess_results
+end
+  ╠═╡ =#
+
+# ╔═╡ 9d797ddf-6fce-4cdd-9e9e-95e1a7edd7f3
+#=╠═╡
+# (2) For each (alg,), plot (cov, ess)
+plt_scaling = let
+
+	rj_ess = [ess[("rj", c)] for c in covs]
+	cg_ess = [ess[("gibbs", c)] for c in covs]
+
+	# Set up plot
+	plt = plot(
+		size=(650, 150), 
+		legend=:outerright,
+		xlabel="Sparsity",
+		ylabel="ESS",
+		bottom_margin=4Plots.mm,
+		ylim=(0, Inf),
+	)
+
+	x = 1 .- η * covs
+
+	# Plot each curve
+	plot!(x, cg_ess, lw=2, label="CG")
+	plot!(x, rj_ess, lw=2, label="RJ")
+
+	plt
+end
+  ╠═╡ =#
+
+# ╔═╡ f2e2205c-f20b-47a6-9a89-72bd245d4a3f
+md"""
+## Dimension Experiment
+"""
+
+# ╔═╡ 8fc5a7d6-8af1-43ad-8965-66fd79bbc92e
+dims = dimension_config[:dim]
+
+# ╔═╡ 816f9876-d35a-4da7-b5a0-9ae823fb4455
+# (1) For each (cov, alg), compute ESS at 100 seconds
+ess_dim = let
+
+	T_ess = 60
+
+	ess_results = Dict()
+	
+	for (a, d) in Iterators.product(algs, dims)
+		
+		# Extract results
+		r = [dim_results[(d, s, a)] for s in dimension_config[:model_seed]]
+	
+		# Compute last sample in 100 seconds
+		t = mean(make_chain(r, get_runtime), dims=[2, 3])[:]
+		final_sample = findfirst(>(T_ess), t)
+	
+		# Compute final effective sample size
+		ess = last(get_ess(make_chain(r, num_clusters), 1:final_sample))
+		@show a, d, ess
+
+		ess_results[(a, d)] = ess
+	end
+
+	ess_results
+end
+
+# ╔═╡ d6731270-f71d-4400-8fc3-36d8efe3edcd
+# (2) For each (alg,), plot (cov, ess)
+plt_dim = let
+
+	rj_ess = [ess_dim[("rj", c)] for c in dims]
+	cg_ess = [ess_dim[("gibbs", c)] for c in dims]
+
+	# Set up plot
+	plt = plot(
+		size=(650, 150), 
+		legend=:outerright,
+		xlabel="Dimension",
+		bottom_margin=4Plots.mm,
+		ylim=(0, 500),
+	)
+
+	# Plot each curve
+	plot!(dims, cg_ess, lw=2, label="CG")
+	plot!(dims, rj_ess, lw=2, label="RJ")
+
+	plt
+
+end
+
+# ╔═╡ 21a84915-7c3a-41bc-8a8e-0bf3cd2d779d
+generate_data(last(dict_list(dimension_config)))["data"]
 
 # ╔═╡ Cell order:
 # ╠═dd0f7868-4a6c-4def-b17c-1f7835cba864
@@ -627,10 +826,8 @@ save_and_show(final_plt, "cg_vs_rj")
 # ╠═a0db0704-8e60-4ff5-b300-1eae870b433c
 # ╠═9f2028b3-7959-4e23-9e5a-b34066fe1885
 # ╟─939cb916-9067-4ba7-86dd-c734a933c6e0
-# ╟─6ee153f0-b83f-4f1f-8b09-8cf4ef023ba9
+# ╠═6ee153f0-b83f-4f1f-8b09-8cf4ef023ba9
 # ╠═26f8ab35-6939-4017-9292-2d9fc8a558dd
-# ╠═6b8fc595-429f-45fb-92ba-d4a922cfc7f8
-# ╠═b3cf23c6-c7a3-4891-bbe8-fd1541c47511
 # ╠═f9048b2e-e744-4d49-905b-47ada5a84e54
 # ╠═098e22dc-223d-48d4-a865-bc6dfbedc39d
 # ╠═73067b2c-df07-415f-9ccc-74c9e70dda64
@@ -671,3 +868,20 @@ save_and_show(final_plt, "cg_vs_rj")
 # ╟─996ce4ab-143d-4ed3-a54e-b75fac4126b0
 # ╟─1f0061bf-2699-4e6d-bcbe-2c5fb4287d7a
 # ╠═ff85f399-3759-4c6e-8f32-66d29fdbed87
+# ╠═d8ab0a63-1b7f-4ed6-a888-e9d525c07963
+# ╠═c3dfcc61-bb58-45e2-a2c6-91cca5d13367
+# ╠═625e1f07-6069-4eff-8e60-f7b162f6f85b
+# ╠═0325ac67-c267-4589-a390-97e6dc80b17b
+# ╠═fe8554c2-fd1c-4c7b-9cad-d10bcb7936fc
+# ╠═4520e800-e8c4-4aed-9b94-db8bb0f9256a
+# ╠═eabd14ac-55f1-43fc-a5b8-dfde9f3adf2f
+# ╠═f5aa0b56-7482-45e2-9112-b1eaa9566eb7
+# ╠═bdfb89b7-05de-4198-9251-4f4bc3f83ae8
+# ╠═9d797ddf-6fce-4cdd-9e9e-95e1a7edd7f3
+# ╠═f2e2205c-f20b-47a6-9a89-72bd245d4a3f
+# ╠═a15ad22a-a7f0-4083-a5a3-92e217834c94
+# ╠═4e1e04f5-49d5-4197-9780-3167dba14bc3
+# ╠═8fc5a7d6-8af1-43ad-8965-66fd79bbc92e
+# ╟─816f9876-d35a-4da7-b5a0-9ae823fb4455
+# ╠═d6731270-f71d-4400-8fc3-36d8efe3edcd
+# ╠═21a84915-7c3a-41bc-8a8e-0bf3cd2d779d
