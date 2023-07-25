@@ -202,7 +202,8 @@ end
 # The following methods are required to implement masked samplers.
 
 """
-Compute whether or not `x` is in the region masked of by `mask`."""
+Compute whether or not `x` is in the region masked of by `mask`.
+"""
 Base.in(x::AbstractDatapoint, mask::AbstractMask) = notimplemented()
 
 """

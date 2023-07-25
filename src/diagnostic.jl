@@ -16,3 +16,7 @@ function cooccupancy_matrix(assignments_history)
 
     return C / length(assignments_history)
 end
+
+function get_runtime(history)
+    return (history.time .- first(history.time))
+end

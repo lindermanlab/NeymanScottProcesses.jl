@@ -1,1 +1,13 @@
 .DS_Store
+*.pdf
+*.jld
+*.ipynb_checkpoints
+
+nsp.sublime-*
+figures/
+*/results/
+gr-temp/
+*/data/
+data
+
+experiments/embassy/raw

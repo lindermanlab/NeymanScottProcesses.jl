@@ -1,17 +1,11 @@
-struct GibbsSampler <: AbstractSampler
-    verbose::Bool
-    save_interval::Int
-    save_keys::Union{Symbol, Tuple{Vararg{Symbol}}}
-    num_samples::Int
-end
-
-function GibbsSampler(
-    ; verbose=true, 
-    save_interval=1, 
-    save_keys=(:log_p, :assignments, :clusters, :globals), 
-    num_samples=100
-)
-    return GibbsSampler(verbose, save_interval, save_keys, num_samples)
+Base.@kwdef struct GibbsSampler <: AbstractSampler
+    verbose::Bool = true
+    save_interval::Int = 1
+    save_keys::Union{Symbol, Tuple{Vararg{Symbol}}} = DEFAULT_KEYS
+    num_samples::Int = 100
+    num_split_merge::Int = 0
+    split_merge_gibbs_moves::Int = 0
+    max_time::Real = Inf 
 end
 
 function (S::GibbsSampler)(
@@ -51,7 +45,11 @@ function (S::GibbsSampler)(
 
             # Sample a new assignment for i-th datapoint.
             assignments[i] = gibbs_sample_assignment!(model, data[i])
+        end
 
+        # Propose a split-merge move
+        for _ in 1:S.num_split_merge
+            split_merge!(model, data, assignments; verbose=S.verbose, num_gibbs=S.split_merge_gibbs_moves)
         end
 
         # Update cluster parameters.
@@ -61,9 +59,11 @@ function (S::GibbsSampler)(
 
         # Update global variable.
         gibbs_sample_globals!(model, data, assignments)
-        _reset_model_probs!(model)  # TODO -- I think this should be done inside gibbs_sample_globals!
 
         # Recompute background and new cluster probabilities
+        _reset_model_probs!(model)  # TODO -- I think this should be done inside gibbs_sample_globals!
+
+        # TODO why is this here?
         recompute_cluster_statistics!(model, clusters(model), data, assignments)
 
         # Store results
@@ -71,6 +71,10 @@ function (S::GibbsSampler)(
             j = Int(s / save_interval)
             update_results!(results, model, assignments, data, S)
             verbose && print(s, "-")  # Display progress
+        end
+
+        if last(results.time) - first(results.time) > S.max_time
+            break
         end
 
     end

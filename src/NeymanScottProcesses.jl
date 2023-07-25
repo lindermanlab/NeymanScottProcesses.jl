@@ -9,6 +9,7 @@ import Base.Iterators
 import Distributions
 
 import StatsBase: sample
+import Base: time
 
 
 
@@ -24,7 +25,7 @@ using StaticArrays
 
 # Methods
 using Distributions: cdf, mean, var, logpdf, rand!
-using LinearAlgebra: norm, logdet, det
+using LinearAlgebra: norm, logdet, det, I
 using Random: AbstractRNG, shuffle!
 using SpecialFunctions: logabsgamma, logfactorial, gamma
 using StatsBase: pweights, denserank, mean
@@ -34,6 +35,7 @@ using StatsFuns: softmax!, softmax, logaddexp, logsumexp, normlogpdf, normpdf
 using Distributions: Categorical, Chisq, Normal, Poisson, TDist
 using Distributions: Dirichlet, MultivariateNormal, InverseWishart
 using Distributions: DirichletMultinomial, Multinomial
+using Distributions: NegativeBinomial
 
 
 
@@ -49,14 +51,17 @@ export RateGamma, InverseGamma, NormalInvChisq, ScaledInvChiseq, SymmetricDirich
 # Sampling and inference
 export sample, log_prior, log_p_latents
 export create_random_mask, split_data_by_mask, sample_masked_data
-export GibbsSampler, Annealer, MaskedSampler
+export GibbsSampler, Annealer, MaskedSampler, ReversibleJumpSampler
 
 # Helper functions
-export cooccupancy_matrix
+export cooccupancy_matrix, get_runtime
 
 # Models
 export GaussianNeymanScottModel, GaussianPriors, GaussianGlobals, GaussianCluster, RealObservation
 export CablesModel, CablesPriors, CablesGlobals, CableCluster, Cable
+
+# Masks
+export CircleMask, CablesMask
 
 
 
@@ -74,15 +79,18 @@ include("core/interface.jl")  # Interface that models must implement
 include("core/cluster_list.jl")
 include("core/mask.jl")
 
+# Models
+include("models/gaussian.jl")
+include("models/cables.jl")
+
 # Samplers
 include("samplers/base.jl")
 include("samplers/gibbs.jl")
 include("samplers/anneal.jl")
 include("samplers/mask.jl")
-
-# Models
-include("models/gaussian.jl")
-include("models/cables.jl")
+include("samplers/rjmcmc.jl")
+include("samplers/split_merge.jl")
+include("samplers/split_merge_gibbs.jl")
 
 # Plotting and diagnostics
 include("diagnostic.jl")

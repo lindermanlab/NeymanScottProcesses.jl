@@ -57,10 +57,13 @@ function log_like(
     # == FIRST TERM == #
     # -- Sum of Poisson Process intensity at all datapoints -- #
     for x in data
-        ll += log_bkgd_intensity(model, x)
+        ll_x = log_bkgd_intensity(model, x)
+        
         for ψ in clusters(model)
-            logaddexp(ll, log_cluster_intensity(model, ψ, x))
+            logaddexp(ll_x, log_cluster_intensity(model, ψ, x))
         end
+
+        ll += ll_x
     end
 
     # == SECOND TERM == #
@@ -92,7 +95,15 @@ function _integrated_cluster_intensity(
     masks::Vector{<: AbstractMask};
     num_samples = 1000
 )
-    num_in_mask = count(i -> (sample_datapoint(cluster, model) ∈ masks), 1:num_samples)
+    num_in_mask = 0
+    for i in 1:num_samples
+        x = sample_datapoint(cluster, model)
+        num_in_mask += (x in masks) ? 1 : 0
+    end
+    # Does sample_datapoint(...) get called once or many times?
+    # TODO does test_log_p make sense? because this is the log-intensity conditioned on the number of events!
+
+    # num_in_mask = count(i -> (sample_datapoint(cluster, model) ∈ masks), 1:num_samples)
     prob_in_mask = sum(num_in_mask) / num_samples
     return prob_in_mask * amplitude(cluster)
 end

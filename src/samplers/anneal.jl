@@ -55,13 +55,15 @@ function (S::Annealer)(
         model.priors = anneal_fn(new_priors, temp)
         _reset_model_probs!(model)
 
-        @show model.new_cluster_log_prob
-        @show model.bkgd_log_prob
+        verbose && @show model.new_cluster_log_prob
+        verbose && @show model.bkgd_log_prob
 
         # Run subsampler and store results
         new_results = subsampler(model, data; initial_assignments=assignments)
         assignments = last(new_results.assignments)
         append_results!(results, new_results, S)
+
+        verbose && println("Log like: $(results.log_p[end])\n")
     end
 
     return results

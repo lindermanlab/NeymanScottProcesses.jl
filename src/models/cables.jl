@@ -84,6 +84,18 @@ mutable struct CablesPriors <: AbstractPriors
     day_of_week::Vector{Float64}
 end
 
+struct CablesMask <: AbstractMask
+    t1::Real
+    t2::Real
+    embassy::Int
+    embassy_dim::Int
+end
+
+struct CablesComplementMask <: AbstractMask
+    T::Real
+    masks::Vector{CablesMask}
+end
+
 const CablesModel = NeymanScottModel{1, Cable, CableCluster, CablesGlobals, CablesPriors}
 
 
@@ -579,3 +591,48 @@ end
 
 
 
+
+# ===
+# MASKING
+# ===
+
+# Regular mask
+
+Base.in(x::Cable, mask::CablesMask) = 
+    (mask.t1 <= x.position < mask.t2) && (mask.embassy == x.embassy)
+
+volume(mask::CablesMask) = 
+    (mask.t2 - mask.t1) / mask.embassy_dim
+
+complement_masks(masks::Vector{CablesMask}, model::CablesModel) = 
+    CablesComplementMask[CablesComplementMask(volume(model), masks)]
+
+function create_random_mask(
+    model::CablesModel, 
+    interval_length::Real, 
+    pc_masked::Real
+)
+    T, E = volume(model), embassy_dim(model)
+    τ = interval_length
+
+    @assert T > τ
+
+    # Fill model with disjoint masks
+    potential_masks = CablesMask[
+        CablesMask(t1, t1 + τ, e, E)
+        for t1 in 1:τ:(T-τ), e in 1:E
+    ]
+
+    # Sample masks
+    mask_volume = volume(first(potential_masks))
+    num_masks = floor(Int, T * pc_masked / mask_volume)
+
+    return sample(potential_masks, num_masks, replace=false)
+end
+
+# Complement mask
+
+Base.in(x::Cable, comp_mask::CablesComplementMask) = !(x in comp_mask.masks)
+
+volume(comp_mask::CablesComplementMask) = 
+    comp_mask.T - sum(volume.(comp_mask.masks))
