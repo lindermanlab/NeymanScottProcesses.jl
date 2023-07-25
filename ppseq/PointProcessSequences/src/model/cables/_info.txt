@@ -1,0 +1,97 @@
+"""
+    # for nodeIndexCluster
+
+    # sufficient statistics for Categorical is the count vector
+
+    Cluster with categorical observations and a Dirichlet prior.
+
+    The Dirichlet(a) prior density is
+
+        p(u | a) = Gam(sum_k ak) / prod_k Gam(ak) * prod_k uk^{ak-1}
+
+    The sufficient statistics are log(uk) for k = 1, .., K.
+
+    The categorical likelihood is,
+
+        p(x | u) = prod_k uk^I[x = k]
+
+    So that the posterior is
+
+        p(u | x, a) = Dir(a1 + x1, ..., aK + xK)
+
+    The posterior predictive is
+        p(x' = j| a') = Gam(2) Gam(sum_k a'_k) / Gam(1 + sum_k ak)
+                       * prod_k Gam(I[k = j] + a_k) / Gam(I[k = j] + 1) / Gam(a_k)
+
+                      = 1 / (sum_k ak) * Gam(a_j + 1) / Gam(a_j)
+                      = a_j / sum_k a_k
+    """
+
+    # node -> this should the total node counts for all data points in
+    # the cluster. i.e. the counts of datapoints for all nodes.
+
+    # shall we save in a sparse format?
+
+    """
+    # for exponentialTimeCluster
+
+    # sufficient statistics for exponetial time is t_min and N, where
+    # t_min is the minimum time of the cluster, and N is the size of
+    # the cluster. When N=0, t_min = +inf. Note we need to recompute
+    # t_min when we remove the first event in the cluster.
+
+    # need to be careful when empty cluster
+
+    Cluster with time-stamped observations.  The cluster is parameterzied
+    by a start time with a uniform prior on [0, T].  Observed event times
+    are exponentially distributed after t_start.
+
+    The posterior distribution of the start time s given child event times
+    {t_n} is
+
+        p(s | {t_n}) \propto Unif(s | [0, T]) * \prod_n Exp(t_n - s | tau)
+            = 1/T * I[s \in [0, T]] * \prod_n 1/tau exp{-(t_n -s) / tau} * I[t_n > s]
+            = 1/T * I[s \in [0, T]] * 1/tau^N exp{-\sum_n t_n / tau + s * N / tau} * I[s < min {t_n}]
+            \propto I[s \in [0, min {t_n}]] * 1/(tau / N) exp{s / (tau / N)}
+
+    Let u = min {t_n} - s.  Then,
+
+        p(u | {t_n}) = Exp(u | tau / N) * I[ds \in [0, min {t_n}]]
+
+    This is a truncated exponential random variable.  We can typically
+    ignore the truncation when min {t_n} >> 0.  That makes the next integral
+    easier.
+
+    The posterior predictive, after a bit of math, is
+
+        p(t' | {t_n}) = N/(N+1) Exp(t' - t_min | tau)   if t' > t_min
+                     or 1/(N+1) Exp(t_min - t' | tau/N) if t' < t_min
+
+    where t_min = min_n {t_n} and N is the number of points already in the cluster.
+    """
+
+    # t_min  the minimum time of the events in the cluster
+    # N      the number of events in the cluster
+
+    """
+    # for markCluster
+
+    # sufficient statistics for Multinomial is the count vector
+
+    Cluster with multinomial observations and a Dirichlet prior.
+
+    The Dirichlet(a) prior density is
+
+        p(u | a) = Gam(sum_k ak) / prod_k Gam(ak) * prod_k uk^{ak-1}
+
+    The sufficient statistics are log(uk) for k = 1, .., K.
+
+    The multinomial likelihood is,
+
+        p(x | u) = Gam(sum_k xk + 1) / prod_k Gam(x_k + 1) prod_k uk^xk
+
+    So that the posterior is
+
+        p(u | x, a) = Dir(a1 + x1, ..., aK + xK)
+
+    """

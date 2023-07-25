@@ -1,0 +1,17 @@
+/ppseq/results/
+.DS_Store
+.ipynb_checkpoints/
+.vscode/
+*.png
+*.pdf
+.nosync
+*.jld
+
+ppseq/data/hippocampus/Achilles_10252013_sessInfo.mat
+ppseq/data/hippocampus/all_spikes.bson
+ppseq/data/hippocampus/big_maze_metadata.bson
+ppseq/data/hippocampus/big_maze_spikes.bson
+ppseq/figures/robustness/results.bson
+ppseq/slurm/logs
+ppseq/slurm/old_logs
+

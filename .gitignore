@@ -1,13 +1,20 @@
 .DS_Store
 *.pdf
 *.jld
-*.ipynb_checkpoints
+.ipynb_checkpoints/
+*/.ipynb_checkpoints/
 
 nsp.sublime-*
 figures/
-*/results/
+*/figures/
+results/
+*/results
 gr-temp/
+data/
 */data/
+*/data
 data
+*/.old_git/
+.old_git/
 
 experiments/embassy/raw
