@@ -11,14 +11,14 @@ First, download and install [Julia](https://julialang.org/downloads/).
 Then run `julia` from the terminal to open the Julia REPL.
 From the REPL, type `]` to enter package mode and run
 
-```
+```julia
 pkg> add https://github.com/lindermanlab/NeymanScottProcesses.jl
 ```
 
 to install this package.
 If you want to plotting capabilities, you'll also need to run
 
-```
+```julia
 pkg> add Plots
 ```
 
@@ -65,7 +65,7 @@ Some experiments were developed using [Pluto notebooks](https://plutojl.org/).
 All Pluto notebooks use plain `.jl` files and can be run as normal Julia scripts.
 However, if you'd like to run them interactively, we recommend you install pluto using the Julia package manager (type `]` from the REPL)
 
-```
+```julia
 pkg> add Pluto
 ```
 
