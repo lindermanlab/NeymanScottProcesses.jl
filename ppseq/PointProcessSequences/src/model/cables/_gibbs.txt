@@ -1,0 +1,279 @@
+
+The major methods we need to define are those called in `gibbs_sample!`. In particular, these are
+
+`log_posterior_predictive(event, datapoint, model)` - compute the posterior probability of assigning `datapoint` to `event`, conditioned on the current sufficient statistics for `event`, i.e. compute
+
+$$log p ( x | T(x_1, ..., x_m), θ, z_k)$$
+
+where `x` is a new spike, {x_1, ..., x_m} are a set of spikes that are currently assigned to a latent event `z_k`, T is the sufficient statistic, and `θ` are global parameters (neuron offsets, etc.).
+
+```
+the log_posterior is the sum of three components.
+
+# node cluster
+
+    def predictive_log_likelihood(self, x):
+        """
+        p(x' = j | {x_n}) = a_j / sum_k a_k
+        """
+        return np.log(self.a[x]) - np.log(self.a.sum())
+
+
+# exponential time cluster
+
+    def predictive_log_likelihood(self, t):
+        N, t_min, tau = self.size, self.t_min, self.tau
+        if N == 0:
+            return -np.log(self.T)
+        elif t > self.t_min:
+            # N/(N+1) Exp(t' - t_min | tau)   if t' > t_min
+            # return np.log(N) - np.log(N+1) + expon.logpdf(t - t_min, 0, tau)
+            return np.log(N) - np.log(N+1) -(t - t_min) / tau - np.log(tau)
+        else:
+            # 1/(N+1) Exp(t_min - t' | tau/N) if t' < t_min
+            # return - np.log(N+1) + expon.logpdf(t_min - t, 0, tau / N)
+            return np.log(N) - np.log(N+1) -(t_min - t) * N / tau - np.log(tau) + np.log(N)
+        return lp
+
+# mark cluster
+
+    def predictive_log_likelihood(self, x):
+        """
+        Explicitly calculate the predictive log likelihood with
+        all its normalizing constants.  Note that this only involves
+        the nonzero entries in x.
+        """
+        a = self.a
+        n = x.sum(axis=-1)
+        pll = gammaln(n+1) + gammaln(a.sum()) - gammaln(n + a.sum())
+        pll += np.sum(gammaln(x + a) - gammaln(x+1) - gammaln(a), axis=-1)
+        # if issparse(x):
+        #     indices, values = x.indices, x.values
+        #     pll += np.sum(gammaln(values + self.a[indices]) - gammaln(values+1) - gammaln(self.a[indices]))
+        return pll
+
+```
+
+
+
+
+
+`bkgd_log_like(datapoint, model)` - compute the posterior probability of assigning `datapoint` to the background
+
+
+```
+    def log_likelihood(self, data):
+        node = data[0].astype(int)
+        time = data[1]
+        mark = data[2:]
+        ll = self.node_background.log_likelihood(node)
+        assert np.all(np.isfinite(ll))
+        ll += self.time_background.log_likelihood(time)
+        assert np.all(np.isfinite(ll))
+        ll += self.mark_backgrounds[node].log_likelihood(mark)
+        assert np.all(np.isfinite(ll))
+        return ll
+
+    # node_background.log_likelihood
+
+    def log_likelihood(self, data):
+        return self.log_pi[data]
+
+
+    # time_background.log_likelihood
+
+    def log_likelihood(self, data):
+        return -np.log(self.T) * np.ones_like(data)
+
+
+    # mark_backgrounds[node].log_likelihood
+
+    this is a multinomial distribution (as opposed to dirichlet multinomial)
+
+    def log_likelihood(self, data):
+            # extra step to make sure self.pi sum to one.
+        self.pi = (self.pi + 1e-12) / (self.pi + 1e-12).sum()
+        ll = multinomial.logpmf(data, data.sum(axis=-1), self.pi)
+        assert np.isfinite(ll)
+        return ll
+
+```
+
+
+
+
+
+`log_posterior_predictive(datapoint, model)` - compute the posterior probability of assigning `datapoint` to a new event
+
+```
+                new_cluster = self.observation_class(**self.observation_hypers)
+                pll[-1] = np.log(self.alpha)
+                # log V_N(t+1) - log V_N(t) where t is the number of clusters,
+                # not including the new cluster.  Note that log_Vs starts with t=0.
+                pll[-1] += log_Vs[num_clusters+1] - log_Vs[num_clusters]
+                pll[-1] += new_cluster.predictive_log_likelihood(x)
+    likelihood given the priors
+```
+
+
+
+
+`gibbs_sample_globals!(model, spikes, assignments)` - sample all the global variables in sequence, conditioned on the sampled latent events and datapoint assignments
+
+```
+λ_0 = background rate (`globals.bkgd_rate`)
+
+posterior: Gamma(alpha + x_i, beta + 1)
+
+p_B = node probability vector for all background events (globals?)
+
+posterior: dirichlet(alpha + counts of background events for each node)
+
+bgmark = background mark probability vector for all nodes (globals?)
+
+posterior: dirichlet(alpha' + sum of event marks for each node)
+
+```
+
+
+`gibbs_sample_event!(event, model)` - sample the variables of a latent event, given its sufficient statistics and the model's global variables
+
+```:nodeproba, :starttime, :markproba
+
+    def sample(self, **kwargs):
+        """
+        Sample the number of clusters and the number of datapoints
+        """
+        data, parents, clusters, weights = [], [], [], []
+
+        # Sample the background data
+        nbkgd = npr.poisson(self.lambda0)
+        if nbkgd > 0:
+            xbkgd = self.background.sample(size=nbkgd, **kwargs)
+            data.append(xbkgd)
+            parents.append(-1 * np.ones(nbkgd, dtype=int))
+
+        # Sample events for each latent cluster
+        num_clusters = npr.poisson(self.mu)
+        for k in range(num_clusters):
+            # Sample cluster weight
+            wk = npr.gamma(self.alpha, 1 / self.beta)
+            # Sample the number of children
+            nk = max(1, npr.poisson(wk))
+            # Sample the marks of children
+            cluster = self.observation_class(**self.observation_hypers)
+            xk = cluster.sample(size=nk, **kwargs)
+            # Append the samples
+            data.append(xk)
+            parents.append(k * np.ones(nk, dtype=int))
+            clusters.append(cluster)
+            weights.append(wk)
+
+        # Combine
+        data = np.concatenate(data, axis=0)
+        parents = np.concatenate(parents)
+
+        # Permute the data
+        perm = npr.permutation(len(parents))
+        data = data[perm]
+        parents = parents[perm]
+
+        return data, parents, clusters, weights
+
+
+```
+
+
+
+There are some smaller methods that need implementation as well.
+
+`reset!(event)` - reset the sufficient statistics and sampled values of the event, as if it were an empty event
+
+```
+empty cluster
+
+
+```
+
+`downdate_stats!(model, x, event)` - update `event`'s sufficient statistics after removing datapoint `x`
+
+```
+
+
+```
+
+
+`update_stats!(model, x, event)` - update  `event`'s sufficient statistics after adding datapoint `x`
+
+
+
+`set_posterior(model, event)` - cache information about the posterior distribution of event `event` based on the current sufficient statistics. This function is usually called after `update_stats!` and `downdate_stats!` and can greatly reduce computation time
+
+`sample_globals(priors)` - sample an instance of `Globals` from `priors`
+
+sample lamba0 etc from priors
+
+
+`sample_events(priors, globals)` - sample a list of events given `priors` and `globals`
+
+sample latent clusters; what's the difference from gibbs_sample_event?
+
+
+`sample_data(model)` - sample a list of datapoints given `model`, which contains `priors`, `globals`, and `events`
+
+
+    def sample(self, **kwargs):
+        """
+        Sample the number of clusters and the number of datapoints
+        """
+        data, parents, clusters, weights = [], [], [], []
+
+        # Sample the background data
+        nbkgd = npr.poisson(self.lambda0)
+        if nbkgd > 0:
+            xbkgd = self.background.sample(size=nbkgd, **kwargs)
+            data.append(xbkgd)
+            parents.append(-1 * np.ones(nbkgd, dtype=int))
+
+        # Sample events for each latent cluster
+        num_clusters = npr.poisson(self.mu)
+        for k in range(num_clusters):
+            # Sample cluster weight
+            wk = npr.gamma(self.alpha, 1 / self.beta)
+            # Sample the number of children
+            nk = max(1, npr.poisson(wk))
+            # Sample the marks of children
+            cluster = self.observation_class(**self.observation_hypers)
+            xk = cluster.sample(size=nk, **kwargs)
+            # Append the samples
+            data.append(xk)
+            parents.append(k * np.ones(nk, dtype=int))
+            clusters.append(cluster)
+            weights.append(wk)
+
+        # Combine
+        data = np.concatenate(data, axis=0)
+        parents = np.concatenate(parents)
+
+        # Permute the data
+        perm = npr.permutation(len(parents))
+        data = data[perm]
+        parents = parents[perm]
+
+        return data, parents, clusters, weights
+
+
+
+
+
+`log_prior(globals, prior)` - compute the prior probability of the global parameters
+
+
+
+`log_p_latents(model)` - compute the probability of the latent events,
+given the global parameters and priors of the model
+
+
+
+`log_like(model, spikes)` - compute the log likelihood of observed data, given the latent events, global variables, and model prior
+

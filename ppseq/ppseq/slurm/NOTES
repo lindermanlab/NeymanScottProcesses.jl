@@ -1,0 +1,1 @@
+sbatch --array=1-3 launch_warped.sh

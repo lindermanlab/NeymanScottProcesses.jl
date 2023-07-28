@@ -595,9 +595,7 @@ final_plt = let
 end;
 
 # ╔═╡ ff85f399-3759-4c6e-8f32-66d29fdbed87
-#=╠═╡
 save_and_show(final_plt, "cg_vs_rj")
-  ╠═╡ =#
 
 # ╔═╡ Cell order:
 # ╠═dd0f7868-4a6c-4def-b17c-1f7835cba864
