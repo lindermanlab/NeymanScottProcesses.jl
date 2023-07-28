@@ -1,2 +1,0 @@
-# JASA Reproducibility Guide
-
