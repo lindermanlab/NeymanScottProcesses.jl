@@ -5,15 +5,15 @@ Base.@kwdef struct GibbsSampler <: AbstractSampler
     num_samples::Int = 100
     num_split_merge::Int = 0
     split_merge_gibbs_moves::Int = 0
-    max_time::Real = Inf 
+    max_time::Real = Inf
 end
 
 function (S::GibbsSampler)(
-    model::NeymanScottModel, 
+    model::NeymanScottModel,
     data::Vector{<: AbstractDatapoint};
     initial_assignments::Union{Symbol, Vector{Int64}}=:background
 )
-    
+
     # Grab sampling options.
     verbose, save_interval, num_samples = S.verbose, S.save_interval, S.num_samples
 
@@ -73,7 +73,9 @@ function (S::GibbsSampler)(
             verbose && print(s, "-")  # Display progress
         end
 
-        if last(results.time) - first(results.time) > S.max_time
+        if (length(results.time) > 0) && (
+            last(results.time) - first(results.time) > S.max_time
+        )
             break
         end
 
@@ -102,7 +104,7 @@ function gibbs_sample_assignment!(model::NeymanScottModel, x::AbstractDatapoint)
     β = cluster_amplitude(model.priors).β
 
     K = num_clusters(model)
-    
+
     # Grab vector without allocating new memory.
     log_probs = resize!(model.K_buffer, K + 2)
 
@@ -123,7 +125,7 @@ function gibbs_sample_assignment!(model::NeymanScottModel, x::AbstractDatapoint)
             log_probs[k] = log(Nk + α) + log_posterior_predictive(cluster, x, model)
         end
     end
-    
+
     # New cluster probability.
     log_probs[K + 1] = model.new_cluster_log_prob + log_posterior_predictive(x, model)
 
@@ -138,7 +140,7 @@ function gibbs_sample_assignment!(model::NeymanScottModel, x::AbstractDatapoint)
         add_bkgd_datapoint!(model, x)
         return -1
 
-    # Assign datapoint to a new cluster. Note that the `add_cluster!` 
+    # Assign datapoint to a new cluster. Note that the `add_cluster!`
     # function returns a newly allocated assignment index.
     elseif z == (K + 1)
         return add_cluster!(model, x)
