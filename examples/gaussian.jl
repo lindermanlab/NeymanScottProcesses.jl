@@ -1,3 +1,6 @@
+# Activate local environment
+using Pkg; Pkg.activate("."); Pkg.instantiate()
+
 using NeymanScottProcesses
 using Plots
 using LinearAlgebra: I
